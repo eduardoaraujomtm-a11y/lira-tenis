@@ -20,7 +20,7 @@ export default async function RankingPage() {
       <RealtimeRefresher />
       <h2 className="mb-1 text-xl font-extrabold">Ranking dos atletas 🎾</h2>
       <div className="mb-4 rounded-lg border border-lira-yellow/40 bg-lira-yellow/10 px-3 py-2 text-xs text-muted">
-        Ranking <span className="font-bold text-foreground">NÃO</span> oficial que segue pontuações somente dos torneios registrados nesse app. Segue os critérios de pontuação abaixo.
+        Ranking <span className="font-bold text-foreground">NÃO</span> oficial! As pontuações abaixo são referentes somente aos torneios de Simples e Duplas de 2026. Segue os critérios de pontuação abaixo.
       </div>
 
       {rows.length === 0 ? (
