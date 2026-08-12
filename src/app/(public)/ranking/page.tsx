@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getRanking } from "@/lib/repo";
 import { SHOW_RANKING } from "@/lib/features";
 import { DEFAULT_POINTS as P } from "@/lib/ranking";
@@ -47,7 +48,11 @@ export default async function RankingPage() {
                     <span className="font-bold text-accent">{i + 1}</span>{" "}
                     <span>{medal(i)}</span>
                   </td>
-                  <td className="px-2 py-2.5 font-semibold">{r.name}</td>
+                  <td className="px-2 py-2.5 font-semibold">
+                    <Link href={`/atleta/${r.athleteId}`} className="hover:text-accent hover:underline">
+                      {r.name}
+                    </Link>
+                  </td>
                   <td className="px-2 py-2.5 text-center tabular-nums text-muted">{r.played}</td>
                   <td className="px-2 py-2.5 text-center tabular-nums text-muted">{r.wins}</td>
                   <td className="px-2 py-2.5 text-center tabular-nums">{r.titles || ""}</td>

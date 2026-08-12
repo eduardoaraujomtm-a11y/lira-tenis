@@ -334,6 +334,106 @@ export async function getBracket(categoryId: string) {
     .filter((g) => g.matches.length > 0);
 }
 
+/** Perfil de um atleta: estatísticas + histórico de jogos. */
+export interface AthleteProfile {
+  id: string;
+  name: string;
+  categories: { id: string; shortName: string; partnerName: string }[];
+  stats: { played: number; wins: number; losses: number; winPct: number };
+  rankPosition: number | null;
+  rankPoints: number;
+  titles: number;
+  matches: MatchView[];
+}
+
+export async function getAthleteProfile(
+  athleteId: string
+): Promise<AthleteProfile | null> {
+  const { categories, competitors, matches } = await getData();
+  const ranking = await getRanking();
+
+  const athleteComps = competitors.filter((c) =>
+    c.athletes.some((a) => a.athlete?.id === athleteId)
+  );
+  if (!athleteComps.length) return null;
+
+  const athleteName =
+    athleteComps[0].athletes.find((a) => a.athlete?.id === athleteId)?.athlete
+      ?.name ?? "?";
+
+  const catMap = new Map(categories.map((c) => [c.id, c]));
+  const cats = athleteComps.map((comp) => {
+    const cat = catMap.get(comp.category_id);
+    const partner = comp.athletes
+      .filter((a) => a.athlete?.id !== athleteId)
+      .map((a) => shortName(a.athlete?.name ?? "?"))
+      .join(" / ");
+    return {
+      id: comp.category_id,
+      shortName: cat?.shortName ?? "?",
+      partnerName: partner,
+    };
+  });
+
+  const compIds = new Set(athleteComps.map((c) => c.id));
+  const athleteMatches = matches.filter(
+    (m) =>
+      (m.a.competitorId && compIds.has(m.a.competitorId)) ||
+      (m.b.competitorId && compIds.has(m.b.competitorId))
+  );
+
+  const finished = athleteMatches.filter(
+    (m) => m.status === "finalizado" || m.status === "wo"
+  );
+  let wins = 0;
+  for (const m of finished) {
+    const isA = m.a.competitorId && compIds.has(m.a.competitorId);
+    if ((isA && m.a.winner) || (!isA && m.b.winner)) wins++;
+  }
+  const losses = finished.length - wins;
+
+  const rankRow = ranking.find((r) => r.athleteId === athleteId);
+  const rankPos = rankRow
+    ? ranking.findIndex((r) => r.athleteId === athleteId) + 1
+    : null;
+
+  return {
+    id: athleteId,
+    name: athleteName,
+    categories: cats,
+    stats: {
+      played: finished.length,
+      wins,
+      losses,
+      winPct: finished.length ? Math.round((wins / finished.length) * 100) : 0,
+    },
+    rankPosition: rankPos,
+    rankPoints: rankRow?.points ?? 0,
+    titles: rankRow?.titles ?? 0,
+    matches: athleteMatches.sort(
+      (a, b) => (b.day + b.time).localeCompare(a.day + a.time)
+    ),
+  };
+}
+
+/** Lista todos os atletas (para busca no perfil). */
+export async function getAllAthletes(): Promise<
+  { id: string; name: string }[]
+> {
+  const { competitors } = await getData();
+  const seen = new Map<string, string>();
+  for (const c of competitors) {
+    for (const a of c.athletes) {
+      if (a.athlete?.id && !seen.has(a.athlete.id)) {
+        seen.set(a.athlete.id, a.athlete.name);
+      }
+    }
+  }
+  return Array.from(seen.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Classificação dos grupos de uma categoria (calculada dos jogos finalizados). */
 export async function getStandings(categoryId: string): Promise<GroupView[]> {
   const { categories, competitors, matches } = await getData();
