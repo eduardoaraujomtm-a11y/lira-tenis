@@ -10,6 +10,7 @@ const items = [
   { href: "/agenda", label: "Agenda", icon: "📅" },
   { href: "/chaves", label: "Chaves", icon: "🎾" },
   { href: "/resultados", label: "Resultados", icon: "🏆" },
+  { href: "/atletas", label: "Atletas", icon: "👤" },
   ...(SHOW_RANKING ? [{ href: "/ranking", label: "Ranking", icon: "📊" }] : []),
 ];
 
