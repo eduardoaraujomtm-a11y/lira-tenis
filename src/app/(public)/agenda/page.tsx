@@ -1,11 +1,23 @@
 import { FilterableMatches } from "@/components/FilterableMatches";
-import { getAgendaMatches, getCategories } from "@/lib/repo";
+import { resolveTournament, getMatchesForTournament, getCategoriesForTournament } from "@/lib/repo";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 
 export const metadata = { title: "Agenda · Lira Tênis" };
 
-export default async function AgendaPage() {
-  const [agenda, categories] = await Promise.all([getAgendaMatches(), getCategories()]);
+export default async function AgendaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { torneio } = await searchParams;
+  const tournament = await resolveTournament(torneio as string | undefined);
+  const [allMatches, categories] = await Promise.all([
+    getMatchesForTournament(tournament.id),
+    getCategoriesForTournament(tournament.id),
+  ]);
+  const agenda = allMatches.filter(
+    (m) => m.status === "agendado" || m.status === "ao_vivo"
+  );
   return (
     <div>
       <RealtimeRefresher />

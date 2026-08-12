@@ -5,7 +5,6 @@ import { TournamentSwitcher } from "./TournamentSwitcher";
 
 export async function Header() {
   const [active, all] = await Promise.all([getActiveTournament(), getAllTournaments()]);
-  const label = [active.name, active.edition].filter(Boolean).join(" ") || "Torneio";
 
   const tournaments = all.map((t) => ({
     id: t.id,
@@ -27,14 +26,15 @@ export async function Header() {
             className="h-10 w-auto"
           />
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-sm font-bold uppercase tracking-wide text-lira-yellow">
-            {label}
-          </span>
-          <Suspense>
-            <TournamentSwitcher tournaments={tournaments} />
-          </Suspense>
-        </div>
+        <Suspense
+          fallback={
+            <span className="text-sm font-bold uppercase tracking-wide text-lira-yellow">
+              {[active.name, active.edition].filter(Boolean).join(" ")}
+            </span>
+          }
+        >
+          <TournamentSwitcher tournaments={tournaments} />
+        </Suspense>
       </div>
     </header>
   );
