@@ -249,56 +249,75 @@ export async function getRanking(): Promise<RankingEntry[]> {
     };
   });
 
-  // Bônus por colocação em categorias só de grupos (sem mata-mata).
-  // 1o = campeão, 2o = vice, 3o/4o = semi.
+  // Bônus de colocação — só após TODOS os jogos da categoria estarem encerrados.
   const placements = new Map<string, PlacementBonus>();
-  const groupsOnlyCats = categories.filter((c) => c.format === "grupos");
   const cfg = DEFAULT_POINTS;
 
-  for (const cat of groupsOnlyCats) {
-    const members = competitors.filter(
-      (c) => c.category_id === cat.id && c.group_id
-    );
-    if (!members.length) continue;
+  for (const cat of categories) {
+    const allCatMatches = matches.filter((m) => m.categoryId === cat.id);
+    const allFinished = allCatMatches.length > 0 &&
+      allCatMatches.every((m) => m.status === "finalizado" || m.status === "wo");
+    if (!allFinished) continue;
 
-    const groupMatches = matches
-      .filter(
-        (m) =>
-          m.categoryId === cat.id &&
-          m.phase === "grupo" &&
-          (m.status === "finalizado" || m.status === "wo")
-      )
-      .map((m) => ({
-        groupId: m.groupId ?? null,
-        aId: m.a.competitorId ?? null,
-        bId: m.b.competitorId ?? null,
-        sets: m.a.sets.map((s, i) => ({ a: s.games, b: m.b.sets[i].games })),
-        winnerId: m.a.winner
-          ? m.a.competitorId ?? null
-          : m.b.winner
-            ? m.b.competitorId ?? null
-            : null,
-        finished: true,
-      }));
+    if (cat.format === "grupos") {
+      // Categorias só de grupos: colocação no grupo define o bônus.
+      const members = competitors.filter(
+        (c) => c.category_id === cat.id && c.group_id
+      );
+      if (!members.length) continue;
 
-    if (!groupMatches.length) continue;
+      const groupMatches = allCatMatches
+        .filter((m) => m.phase === "grupo")
+        .map((m) => ({
+          groupId: m.groupId ?? null,
+          aId: m.a.competitorId ?? null,
+          bId: m.b.competitorId ?? null,
+          sets: m.a.sets.map((s, i) => ({ a: s.games, b: m.b.sets[i].games })),
+          winnerId: m.a.winner
+            ? m.a.competitorId ?? null
+            : m.b.winner
+              ? m.b.competitorId ?? null
+              : null,
+          finished: true,
+        }));
 
-    const standings = computeGroupStandings(
-      members.map((c) => ({ id: c.id, groupId: c.group_id ?? null })),
-      groupMatches
-    );
+      if (!groupMatches.length) continue;
 
-    // Junta todos os grupos e ordena pela mesma lógica de classificação
-    const allRows = standings.flatMap((g) => g.rows);
-    // Posição global dentro da categoria (1o, 2o, 3o...)
-    for (let i = 0; i < allRows.length; i++) {
-      const compId = allRows[i].competitorId;
-      if (i === 0) {
-        placements.set(compId, { bonus: cfg.campeao, isTitle: true });
-      } else if (i === 1) {
-        placements.set(compId, { bonus: cfg.vice, isTitle: false });
-      } else if (i <= 3) {
-        placements.set(compId, { bonus: cfg.semi, isTitle: false });
+      const standings = computeGroupStandings(
+        members.map((c) => ({ id: c.id, groupId: c.group_id ?? null })),
+        groupMatches
+      );
+
+      const allRows = standings.flatMap((g) => g.rows);
+      for (let i = 0; i < allRows.length; i++) {
+        const compId = allRows[i].competitorId;
+        if (i === 0) {
+          placements.set(compId, { bonus: cfg.campeao, isTitle: true });
+        } else if (i === 1) {
+          placements.set(compId, { bonus: cfg.vice, isTitle: false });
+        } else if (i <= 3) {
+          placements.set(compId, { bonus: cfg.semi, isTitle: false });
+        }
+      }
+    } else {
+      // Categorias com mata-mata: bônus pela fase de eliminação.
+      const knockout = allCatMatches.filter(
+        (m) => m.phase !== "grupo" && m.phase !== "terceiro"
+      );
+      for (const m of knockout) {
+        const finished = m.status === "finalizado" || m.status === "wo";
+        if (!finished) continue;
+        const winnerId = m.a.winner ? m.a.competitorId : m.b.winner ? m.b.competitorId : null;
+        const loserId = m.a.winner ? m.b.competitorId : m.b.winner ? m.a.competitorId : null;
+
+        if (m.phase === "final") {
+          if (winnerId) placements.set(winnerId, { bonus: cfg.campeao, isTitle: true });
+          if (loserId) placements.set(loserId, { bonus: cfg.vice, isTitle: false });
+        } else if (loserId && !placements.has(loserId)) {
+          const phase = m.phase as RankPhase;
+          const bonus = phase === "semi" ? cfg.semi : phase === "quartas" ? cfg.quartas : phase === "oitavas" ? cfg.oitavas : 0;
+          if (bonus) placements.set(loserId, { bonus, isTitle: false });
+        }
       }
     }
   }

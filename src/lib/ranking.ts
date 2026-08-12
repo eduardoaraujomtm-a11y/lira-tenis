@@ -112,22 +112,6 @@ export function computeRanking(
     if (placement) {
       bonus = placement.bonus;
       titles = placement.isTitle ? 1 : 0;
-    } else {
-      const wonFinal = cm.some((m) => m.phase === "final" && m.winnerId === c.id);
-      if (wonFinal) {
-        bonus = cfg.campeao;
-        titles = 1;
-      } else {
-        const losses = cm.filter(
-          (m) => m.phase !== "grupo" && m.phase !== "terceiro" && m.winnerId !== c.id
-        );
-        if (losses.length) {
-          const deepest = losses.reduce((a, b) =>
-            PHASE_DEPTH[b.phase] > PHASE_DEPTH[a.phase] ? b : a
-          );
-          bonus = eliminationBonus(deepest.phase, cfg);
-        }
-      }
     }
 
     const compPoints = wins * cfg.win + cfg.participacao + bonus;
