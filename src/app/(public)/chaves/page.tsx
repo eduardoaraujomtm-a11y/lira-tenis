@@ -1,12 +1,18 @@
 import { ChavesView, type CategoryBracket } from "./ChavesView";
-import { getCategories, getBracket, getStandings } from "@/lib/repo";
+import { getCategoriesForTournament, getBracket, getStandings, resolveTournament } from "@/lib/repo";
 import { hasGroupsPhase } from "@/lib/rules";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 
 export const metadata = { title: "Chaves · Lira Tênis" };
 
-export default async function ChavesPage() {
-  const categories = await getCategories();
+export default async function ChavesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { torneio } = await searchParams;
+  const tournament = await resolveTournament(torneio as string | undefined);
+  const categories = await getCategoriesForTournament(tournament.id);
   const data: CategoryBracket[] = await Promise.all(
     categories.map(async (category) => ({
       category,

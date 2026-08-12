@@ -69,6 +69,7 @@ interface RawCategory {
   format: Format;
   sort_order: number;
   qualifiers_per_group: number;
+  tournament_id: string;
 }
 
 /** Nome de exibição de uma dupla/jogador a partir dos atletas. */
@@ -90,7 +91,7 @@ export const getData = cache(async () => {
   const [catRes, compRes, matchRes] = await Promise.all([
     supabase
       .from("categories")
-      .select("id,name,short_name,type,format,sort_order,qualifiers_per_group")
+      .select("id,name,short_name,type,format,sort_order,qualifiers_per_group,tournament_id")
       .order("sort_order"),
     supabase
       .from("competitors")
@@ -185,6 +186,7 @@ export const getData = cache(async () => {
     type: c.type,
     format: c.format,
     qualifiersPerGroup: c.qualifiers_per_group,
+    tournamentId: c.tournament_id,
   }));
 
   return { categories: categoryViews, competitors, matches };
@@ -201,19 +203,78 @@ export async function getAllMatches(): Promise<MatchView[]> {
   return (await getData()).matches;
 }
 
-/** Dados básicos do torneio (nome + edição), para o cabeçalho. */
-export const getTournamentInfo = cache(async () => {
+export interface TournamentInfo {
+  id: string;
+  name: string;
+  edition: string;
+}
+
+/** Todos os torneios registrados. */
+export const getAllTournaments = cache(async (): Promise<TournamentInfo[]> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("tournaments")
-    .select("name,edition")
-    .limit(1)
-    .single();
-  return {
-    name: (data?.name as string) ?? "",
-    edition: (data?.edition as string) ?? "",
-  };
+    .select("id,name,edition")
+    .order("created_at", { ascending: false });
+  return (data ?? []).map((t) => ({
+    id: t.id as string,
+    name: t.name as string,
+    edition: (t.edition as string) ?? "",
+  }));
 });
+
+/** Torneio ativo = o que tem jogos agendados ou ao vivo (ou o mais recente). */
+export const getActiveTournament = cache(async (): Promise<TournamentInfo> => {
+  const tournaments = await getAllTournaments();
+  if (tournaments.length <= 1) return tournaments[0] ?? { id: "", name: "", edition: "" };
+
+  const { matches, categories } = await getData();
+  const catTournament = new Map(categories.map((c) => [c.id, c.tournamentId]));
+
+  for (const t of tournaments) {
+    const tCats = new Set(categories.filter((c) => c.tournamentId === t.id).map((c) => c.id));
+    const hasActive = matches.some(
+      (m) => tCats.has(m.categoryId) && (m.status === "agendado" || m.status === "ao_vivo")
+    );
+    if (hasActive) return t;
+  }
+  return tournaments[0];
+});
+
+/** Dados básicos do torneio (nome + edição), para o cabeçalho. */
+export const getTournamentInfo = cache(async () => {
+  const t = await getActiveTournament();
+  return { name: t.name, edition: t.edition };
+});
+
+/** Categorias filtradas por torneio. */
+export async function getCategoriesForTournament(tournamentId: string): Promise<CategoryView[]> {
+  return (await getData()).categories.filter((c) => c.tournamentId === tournamentId);
+}
+
+/** Jogos filtrados por torneio. */
+export async function getMatchesForTournament(tournamentId: string): Promise<MatchView[]> {
+  const { categories, matches } = await getData();
+  const catIds = new Set(categories.filter((c) => c.tournamentId === tournamentId).map((c) => c.id));
+  return matches.filter((m) => catIds.has(m.categoryId));
+}
+
+/** Jogos finalizados filtrados por torneio. */
+export async function getFinishedMatchesForTournament(tournamentId: string): Promise<MatchView[]> {
+  return (await getMatchesForTournament(tournamentId)).filter(
+    (m) => m.status === "finalizado" || m.status === "wo"
+  );
+}
+
+/** Resolve o torneio a partir do searchParam ?torneio=, ou usa o ativo. */
+export async function resolveTournament(torneioParam?: string): Promise<TournamentInfo> {
+  if (torneioParam) {
+    const all = await getAllTournaments();
+    const found = all.find((t) => t.id === torneioParam);
+    if (found) return found;
+  }
+  return getActiveTournament();
+}
 
 /** Ranking dos atletas por desempenho (pontos = vitórias + participação + bônus de fase/colocação). */
 export async function getRanking(): Promise<RankingEntry[]> {
@@ -369,22 +430,26 @@ export async function getChampions(): Promise<Champion[]> {
 }
 
 export async function getLiveMatches(): Promise<MatchView[]> {
-  return (await getData()).matches.filter((m) => m.status === "ao_vivo");
+  const t = await getActiveTournament();
+  return (await getMatchesForTournament(t.id)).filter((m) => m.status === "ao_vivo");
 }
 
 export async function getUpcomingMatches(): Promise<MatchView[]> {
-  return (await getData()).matches.filter((m) => m.status === "agendado");
+  const t = await getActiveTournament();
+  return (await getMatchesForTournament(t.id)).filter((m) => m.status === "agendado");
 }
 
 export async function getFinishedMatches(): Promise<MatchView[]> {
-  return (await getData()).matches.filter(
+  const t = await getActiveTournament();
+  return (await getMatchesForTournament(t.id)).filter(
     (m) => m.status === "finalizado" || m.status === "wo"
   );
 }
 
 /** Jogos "que ainda vão/estão acontecendo" (agenda). */
 export async function getAgendaMatches(): Promise<MatchView[]> {
-  return (await getData()).matches.filter(
+  const t = await getActiveTournament();
+  return (await getMatchesForTournament(t.id)).filter(
     (m) => m.status === "agendado" || m.status === "ao_vivo"
   );
 }

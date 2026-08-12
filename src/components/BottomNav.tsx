@@ -6,8 +6,7 @@ import { SHOW_RANKING } from "@/lib/features";
 
 const items = [
   { href: "/", label: "Início", icon: "🏠" },
-  { href: "/ao-vivo", label: "Ao vivo", icon: "🔴" },
-  { href: "/agenda", label: "Agenda", icon: "📅" },
+{ href: "/agenda", label: "Agenda", icon: "📅" },
   { href: "/chaves", label: "Chaves", icon: "🎾" },
   { href: "/resultados", label: "Resultados", icon: "🏆" },
   { href: "/atletas", label: "Atletas", icon: "👤" },

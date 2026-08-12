@@ -1,9 +1,18 @@
 import Image from "next/image";
-import { getTournamentInfo } from "@/lib/repo";
+import { Suspense } from "react";
+import { getActiveTournament, getAllTournaments } from "@/lib/repo";
+import { TournamentSwitcher } from "./TournamentSwitcher";
 
 export async function Header() {
-  const { name, edition } = await getTournamentInfo();
-  const label = [name, edition].filter(Boolean).join(" ") || "Torneio";
+  const [active, all] = await Promise.all([getActiveTournament(), getAllTournaments()]);
+  const label = [active.name, active.edition].filter(Boolean).join(" ") || "Torneio";
+
+  const tournaments = all.map((t) => ({
+    id: t.id,
+    name: t.name,
+    edition: t.edition,
+    active: t.id === active.id,
+  }));
 
   return (
     <header className="sticky top-0 z-20 bg-lira-purple">
@@ -18,9 +27,14 @@ export async function Header() {
             className="h-10 w-auto"
           />
         </div>
-        <span className="text-sm font-bold uppercase tracking-wide text-lira-yellow">
-          {label}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm font-bold uppercase tracking-wide text-lira-yellow">
+            {label}
+          </span>
+          <Suspense>
+            <TournamentSwitcher tournaments={tournaments} />
+          </Suspense>
+        </div>
       </div>
     </header>
   );

@@ -154,6 +154,7 @@ export interface CategoryView {
   type: CompetitorType;
   format: Format;
   qualifiersPerGroup: number;
+  tournamentId: string;
 }
 
 export interface StandingRow {

@@ -5,15 +5,13 @@ import {
   getLiveMatches,
   getUpcomingMatches,
   getFinishedMatches,
-  getChampions,
 } from "@/lib/repo";
 
 export default async function Home() {
-  const [live, upcomingAll, recentAll, champions] = await Promise.all([
+  const [live, upcomingAll, recentAll] = await Promise.all([
     getLiveMatches(),
     getUpcomingMatches(),
     getFinishedMatches(),
-    getChampions(),
   ]);
   const upcoming = upcomingAll.slice(0, 4);
   const recent = recentAll.slice(0, 3);
@@ -21,25 +19,6 @@ export default async function Home() {
   return (
     <div className="space-y-6">
       <RealtimeRefresher />
-
-      {champions.length > 0 && (
-        <section>
-          <SectionTitle title="Campeões 🏆" href="/campeoes" />
-          <div className="space-y-2">
-            {champions.slice(0, 3).map((c) => (
-              <div
-                key={c.categoryId}
-                className="flex items-center justify-between gap-2 rounded-xl border border-lira-yellow/50 bg-card p-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-accent">{c.categoryShort}</p>
-                  <p className="truncate text-sm font-bold">🏆 {c.champion}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       <section>
         <SectionTitle title="Agora nas quadras" href={live.length ? "/ao-vivo" : undefined} />

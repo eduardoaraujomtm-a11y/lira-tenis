@@ -1,13 +1,22 @@
 import Link from "next/link";
 import { FilterableMatches } from "@/components/FilterableMatches";
-import { getFinishedMatches, getCategories } from "@/lib/repo";
+import { getFinishedMatchesForTournament, getCategoriesForTournament, resolveTournament } from "@/lib/repo";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import { SHOW_RANKING } from "@/lib/features";
 
 export const metadata = { title: "Resultados · Lira Tênis" };
 
-export default async function ResultadosPage() {
-  const [finished, categories] = await Promise.all([getFinishedMatches(), getCategories()]);
+export default async function ResultadosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { torneio } = await searchParams;
+  const tournament = await resolveTournament(torneio as string | undefined);
+  const [finished, categories] = await Promise.all([
+    getFinishedMatchesForTournament(tournament.id),
+    getCategoriesForTournament(tournament.id),
+  ]);
   return (
     <div>
       <RealtimeRefresher />
