@@ -51,7 +51,7 @@ function CompetitorRow({
           return (
             <span
               key={i}
-              className={`inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-sm font-bold ${
+              className={`inline-flex h-6 w-7 items-center justify-center rounded text-sm font-bold ${
                 emAndamento
                   ? "bg-lira-yellow text-lira-purple-dark"
                   : wonSets[i]

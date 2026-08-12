@@ -1,27 +1,29 @@
 import Link from "next/link";
 import { MatchCard } from "@/components/MatchCard";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
-import {
-  getLiveMatches,
-  getUpcomingMatches,
-  getFinishedMatches,
-} from "@/lib/repo";
+import { resolveTournament, getMatchesForTournament } from "@/lib/repo";
 
-export default async function Home() {
-  const [live, upcomingAll, recentAll] = await Promise.all([
-    getLiveMatches(),
-    getUpcomingMatches(),
-    getFinishedMatches(),
-  ]);
-  const upcoming = upcomingAll.slice(0, 4);
-  const recent = recentAll.slice(0, 3);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { torneio } = await searchParams;
+  const tournament = await resolveTournament(torneio as string | undefined);
+  const allMatches = await getMatchesForTournament(tournament.id);
+
+  const live = allMatches.filter((m) => m.status === "ao_vivo");
+  const upcoming = allMatches.filter((m) => m.status === "agendado").slice(0, 4);
+  const recent = allMatches
+    .filter((m) => m.status === "finalizado" || m.status === "wo")
+    .slice(0, 3);
 
   return (
     <div className="space-y-6">
       <RealtimeRefresher />
 
       <section>
-        <SectionTitle title="Agora nas quadras" href={live.length ? "/ao-vivo" : undefined} />
+        <SectionTitle title="Agora nas quadras" />
         {live.length ? (
           <div className="space-y-2">
             {live.map((m) => (

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { SHOW_RANKING } from "@/lib/features";
 
 const items = [
   { href: "/", label: "Início", icon: "🏠" },
-{ href: "/agenda", label: "Agenda", icon: "📅" },
+  { href: "/agenda", label: "Agenda", icon: "📅" },
   { href: "/chaves", label: "Chaves", icon: "🎾" },
   { href: "/resultados", label: "Resultados", icon: "🏆" },
   { href: "/atletas", label: "Atletas", icon: "👤" },
@@ -15,6 +15,14 @@ const items = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const torneio = searchParams.get("torneio");
+
+  function buildHref(base: string) {
+    if (!torneio) return base;
+    return `${base}?torneio=${torneio}`;
+  }
+
   return (
     <nav className="sticky bottom-0 z-20 border-t border-border bg-card">
       <div className="mx-auto flex max-w-3xl">
@@ -24,7 +32,7 @@ export function BottomNav() {
           return (
             <Link
               key={it.href}
-              href={it.href}
+              href={buildHref(it.href)}
               className={`flex flex-1 flex-col items-center gap-0.5 px-0.5 py-2 text-[10px] font-medium whitespace-nowrap transition-colors ${
                 active ? "text-accent" : "text-muted"
               }`}
