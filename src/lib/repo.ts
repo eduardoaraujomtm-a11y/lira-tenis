@@ -389,7 +389,7 @@ export async function getRanking(): Promise<RankingEntry[]> {
   }));
 }
 
-/** Campeões: por categoria com final decidida (vencedor da final). */
+/** Campeões: por categoria com final decidida ou classificação de grupos concluída. */
 export async function getChampions(): Promise<Champion[]> {
   const { categories, competitors, matches } = await getData();
   const fullName = (id?: string) => {
@@ -403,28 +403,70 @@ export async function getChampions(): Promise<Champion[]> {
 
   const out: Champion[] = [];
   for (const cat of categories) {
-    const final = matches.find(
-      (m) =>
-        m.categoryId === cat.id &&
-        m.phase === "final" &&
-        (m.status === "finalizado" || m.status === "wo")
+    const catMatches = matches.filter((m) => m.categoryId === cat.id);
+    const allFinished = catMatches.length > 0 &&
+      catMatches.every((m) => m.status === "finalizado" || m.status === "wo");
+
+    // Categorias com final (mata-mata ou grupos+mata-mata)
+    const final = catMatches.find(
+      (m) => m.phase === "final" && (m.status === "finalizado" || m.status === "wo")
     );
-    if (!final) continue;
-    const champId = final.a.winner
-      ? final.a.competitorId
-      : final.b.winner
-      ? final.b.competitorId
-      : undefined;
-    if (!champId) continue;
-    const viceId = champId === final.a.competitorId ? final.b.competitorId : final.a.competitorId;
-    out.push({
-      categoryId: cat.id,
-      categoryName: cat.name,
-      categoryShort: cat.shortName,
-      type: cat.type,
-      champion: fullName(champId),
-      runnerUp: fullName(viceId),
-    });
+    if (final) {
+      const champId = final.a.winner
+        ? final.a.competitorId
+        : final.b.winner
+        ? final.b.competitorId
+        : undefined;
+      if (!champId) continue;
+      const viceId = champId === final.a.competitorId ? final.b.competitorId : final.a.competitorId;
+      out.push({
+        categoryId: cat.id,
+        categoryName: cat.name,
+        categoryShort: cat.shortName,
+        type: cat.type,
+        champion: fullName(champId),
+        runnerUp: fullName(viceId),
+      });
+      continue;
+    }
+
+    // Categorias só de grupos: 1º da classificação = campeão
+    if (cat.format === "grupos" && allFinished) {
+      const members = competitors.filter(
+        (c) => c.category_id === cat.id && c.group_id
+      );
+      if (!members.length) continue;
+      const groupMatches = catMatches
+        .filter((m) => m.phase === "grupo")
+        .map((m) => ({
+          groupId: m.groupId ?? null,
+          aId: m.a.competitorId ?? null,
+          bId: m.b.competitorId ?? null,
+          sets: m.a.sets.map((s, i) => ({ a: s.games, b: m.b.sets[i].games })),
+          winnerId: m.a.winner
+            ? m.a.competitorId ?? null
+            : m.b.winner
+              ? m.b.competitorId ?? null
+              : null,
+          finished: true,
+        }));
+      if (!groupMatches.length) continue;
+      const standings = computeGroupStandings(
+        members.map((c) => ({ id: c.id, groupId: c.group_id ?? null })),
+        groupMatches
+      );
+      const allRows = standings.flatMap((g) => g.rows);
+      if (allRows.length >= 2) {
+        out.push({
+          categoryId: cat.id,
+          categoryName: cat.name,
+          categoryShort: cat.shortName,
+          type: cat.type,
+          champion: fullName(allRows[0].competitorId),
+          runnerUp: fullName(allRows[1].competitorId),
+        });
+      }
+    }
   }
   return out;
 }
