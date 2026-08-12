@@ -14,6 +14,18 @@ import type {
   StandingRow,
 } from "./types";
 import { shortName, PHASE_LABEL, setsWon } from "./tennis";
+import { computeRanking, type RankMatch, type RankPhase } from "./ranking";
+import { bracketPositions } from "./bracket-layout";
+import { computeGroupStandings } from "./standings";
+
+export interface RankingEntry {
+  athleteId: string;
+  name: string;
+  points: number;
+  played: number;
+  wins: number;
+  titles: number;
+}
 
 // ---- Formas das linhas cruas vindas do Supabase ----
 interface RawCompetitor {
@@ -21,7 +33,7 @@ interface RawCompetitor {
   category_id: string;
   seed: number | null;
   group_id: string | null;
-  athletes: { position: number; athlete: { name: string } | null }[];
+  athletes: { position: number; athlete: { id: string; name: string } | null }[];
 }
 interface RawSet {
   a: number;
@@ -40,9 +52,13 @@ interface RawMatch {
   status: MatchStatus;
   competitor_a: string | null;
   competitor_b: string | null;
+  label_a: string | null;
+  label_b: string | null;
   sets: RawSet[];
   live: { server?: "A" | "B"; a: string; b: string } | null;
   winner_id: string | null;
+  next_match_id: string | null;
+  next_slot: "A" | "B" | null;
   court: { name: string } | null;
 }
 interface RawCategory {
@@ -52,6 +68,7 @@ interface RawCategory {
   type: CompetitorType;
   format: Format;
   sort_order: number;
+  qualifiers_per_group: number;
 }
 
 /** Nome de exibição de uma dupla/jogador a partir dos atletas. */
@@ -73,17 +90,17 @@ export const getData = cache(async () => {
   const [catRes, compRes, matchRes] = await Promise.all([
     supabase
       .from("categories")
-      .select("id,name,short_name,type,format,sort_order")
+      .select("id,name,short_name,type,format,sort_order,qualifiers_per_group")
       .order("sort_order"),
     supabase
       .from("competitors")
       .select(
-        "id,category_id,seed,group_id,athletes:competitor_athletes(position,athlete:athletes(name))"
+        "id,category_id,seed,group_id,athletes:competitor_athletes(position,athlete:athletes(id,name))"
       ),
     supabase
       .from("matches")
       .select(
-        "id,category_id,phase,group_id,round,day,time,status,competitor_a,competitor_b,sets,live,winner_id,court:courts(name)"
+        "id,category_id,phase,group_id,round,day,time,status,competitor_a,competitor_b,label_a,label_b,sets,live,winner_id,next_match_id,next_slot,court:courts(name)"
       )
       .order("day")
       .order("time"),
@@ -100,7 +117,9 @@ export const getData = cache(async () => {
     sets: RawSet[],
     pick: "a" | "b",
     winnerId: string | null,
-    isLive: boolean
+    isLive: boolean,
+    /** Previsão do confronto ("2º do Grupo B") enquanto a vaga não é decidida. */
+    label?: string | null
   ): SideView => {
     const c = compId ? compMap.get(compId) : undefined;
     const won = setsWon(sets);
@@ -108,14 +127,13 @@ export const getData = cache(async () => {
       isLive && (pick === "a" ? won.a > won.b : won.b > won.a);
     return {
       competitorId: compId ?? undefined,
-      name: nameOf(c),
+      name: c ? nameOf(c) : label ?? nameOf(undefined),
       seed: c?.seed ?? undefined,
       sets: sets.map((s) => ({
         games: pick === "a" ? s.a : s.b,
-        tb:
-          s.tbA !== undefined && s.tbB !== undefined
-            ? Math.min(s.tbA, s.tbB)
-            : undefined,
+        // Os pontos do tie-break de CADA lado. Antes mostrava o menor dos dois
+        // nos dois lados, então um 8-6 aparecia como 6 e 6.
+        tb: pick === "a" ? s.tbA : s.tbB,
       })),
       winner: winnerId ? winnerId === compId : leading,
     };
@@ -150,11 +168,13 @@ export const getData = cache(async () => {
       time: m.time,
       status: m.status,
       isLive,
-      a: side(m.competitor_a, m.sets, "a", m.winner_id, isLive),
-      b: side(m.competitor_b, m.sets, "b", m.winner_id, isLive),
+      a: side(m.competitor_a, m.sets, "a", m.winner_id, isLive, m.label_a),
+      b: side(m.competitor_b, m.sets, "b", m.winner_id, isLive, m.label_b),
       point: m.live
         ? { server: m.live.server, a: m.live.a, b: m.live.b }
         : undefined,
+      nextMatchId: m.next_match_id ?? undefined,
+      nextSlot: m.next_slot ?? undefined,
     };
   });
 
@@ -164,6 +184,7 @@ export const getData = cache(async () => {
     shortName: c.short_name,
     type: c.type,
     format: c.format,
+    qualifiersPerGroup: c.qualifiers_per_group,
   }));
 
   return { categories: categoryViews, competitors, matches };
@@ -178,6 +199,60 @@ export async function getCategories(): Promise<CategoryView[]> {
 /** Todos os jogos (para o painel do organizador). */
 export async function getAllMatches(): Promise<MatchView[]> {
   return (await getData()).matches;
+}
+
+/** Dados básicos do torneio (nome + edição), para o cabeçalho. */
+export const getTournamentInfo = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("tournaments")
+    .select("name,edition")
+    .limit(1)
+    .single();
+  return {
+    name: (data?.name as string) ?? "",
+    edition: (data?.edition as string) ?? "",
+  };
+});
+
+/** Ranking dos atletas por desempenho (pontos = vitórias + participação + bônus de fase). */
+export async function getRanking(): Promise<RankingEntry[]> {
+  const { competitors, matches } = await getData();
+
+  const nameById = new Map<string, string>();
+  const rankCompetitors = competitors.map((c) => {
+    const athleteIds: string[] = [];
+    for (const a of c.athletes) {
+      if (a.athlete?.id) {
+        athleteIds.push(a.athlete.id);
+        nameById.set(a.athlete.id, a.athlete.name);
+      }
+    }
+    return { id: c.id, athleteIds };
+  });
+
+  const rankMatches: RankMatch[] = matches.map((m) => {
+    const finished = m.status === "finalizado" || m.status === "wo";
+    const winnerId = finished
+      ? m.a.winner
+        ? m.a.competitorId ?? null
+        : m.b.winner
+        ? m.b.competitorId ?? null
+        : null
+      : null;
+    return {
+      phase: m.phase as RankPhase,
+      finished,
+      aId: m.a.competitorId ?? null,
+      bId: m.b.competitorId ?? null,
+      winnerId,
+    };
+  });
+
+  return computeRanking(rankCompetitors, rankMatches).map((r) => ({
+    ...r,
+    name: nameById.get(r.athleteId) ?? "—",
+  }));
 }
 
 /** Campeões: por categoria com final decidida (vencedor da final). */
@@ -241,80 +316,73 @@ export async function getAgendaMatches(): Promise<MatchView[]> {
   );
 }
 
-/** Chave do mata-mata de uma categoria, agrupada por fase. */
+/** Chave do mata-mata de uma categoria, agrupada por fase (ordenada como árvore). */
 export async function getBracket(categoryId: string) {
-  const order: Phase[] = ["oitavas", "quartas", "semi", "final"];
+  const order: Phase[] = ["oitavas", "quartas", "semi", "final", "terceiro"];
   const knockout = (await getData()).matches.filter(
     (m) => m.categoryId === categoryId && m.phase !== "grupo"
   );
+  const pos = bracketPositions(knockout);
   return order
     .map((phase) => ({
       phase,
       phaseLabel: PHASE_LABEL[phase],
-      matches: knockout.filter((m) => m.phase === phase),
+      matches: knockout
+        .filter((m) => m.phase === phase)
+        .sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0)),
     }))
     .filter((g) => g.matches.length > 0);
 }
 
 /** Classificação dos grupos de uma categoria (calculada dos jogos finalizados). */
 export async function getStandings(categoryId: string): Promise<GroupView[]> {
-  const { competitors, matches } = await getData();
+  const { categories, competitors, matches } = await getData();
   const members = competitors.filter(
     (c) => c.category_id === categoryId && c.group_id
   );
   if (!members.length) return [];
+  const qualifiersPerGroup =
+    categories.find((c) => c.id === categoryId)?.qualifiersPerGroup ?? 2;
 
-  const groupIds = Array.from(new Set(members.map((c) => c.group_id!))).sort();
-  const played = matches.filter(
-    (m) =>
-      m.categoryId === categoryId &&
-      m.phase === "grupo" &&
-      (m.status === "finalizado" || m.status === "wo")
+  const nameById = new Map(members.map((c) => [c.id, nameOf(c)]));
+  const groupMatches = matches
+    .filter(
+      (m) =>
+        m.categoryId === categoryId &&
+        m.phase === "grupo" &&
+        (m.status === "finalizado" || m.status === "wo")
+    )
+    .map((m) => ({
+      groupId: m.groupId ?? null,
+      aId: m.a.competitorId ?? null,
+      bId: m.b.competitorId ?? null,
+      sets: m.a.sets.map((s, i) => ({ a: s.games, b: m.b.sets[i].games })),
+      winnerId: m.a.winner
+        ? m.a.competitorId ?? null
+        : m.b.winner
+          ? m.b.competitorId ?? null
+          : null,
+      finished: true,
+    }));
+
+  const standings = computeGroupStandings(
+    members.map((c) => ({ id: c.id, groupId: c.group_id ?? null })),
+    groupMatches
   );
 
-  return groupIds.map((gid) => {
-    const rows: StandingRow[] = members
-      .filter((c) => c.group_id === gid)
-      .map((c) => ({
-        competitorId: c.id,
-        name: nameOf(c),
-        played: 0,
-        wins: 0,
-        setDiff: 0,
-        gameDiff: 0,
-        points: 0,
-        qualifies: false,
-      }));
-    const rowMap = new Map(rows.map((r) => [r.competitorId, r]));
-
-    for (const m of played) {
-      const rA = rowMap.get(m.a.competitorId ?? "");
-      const rB = rowMap.get(m.b.competitorId ?? "");
-      if (!rA || !rB) continue;
-      rA.played++;
-      rB.played++;
-      const swA = m.a.sets.filter((s, i) => s.games > m.b.sets[i].games).length;
-      const swB = m.b.sets.filter((s, i) => s.games > m.a.sets[i].games).length;
-      rA.setDiff += swA - swB;
-      rB.setDiff += swB - swA;
-      const gA = m.a.sets.reduce((t, s) => t + s.games, 0);
-      const gB = m.b.sets.reduce((t, s) => t + s.games, 0);
-      rA.gameDiff += gA - gB;
-      rB.gameDiff += gB - gA;
-      if (m.a.winner) {
-        rA.wins++;
-        rA.points += 2;
-      } else if (m.b.winner) {
-        rB.wins++;
-        rB.points += 2;
-      }
-    }
-
-    rows.sort(
-      (x, y) =>
-        y.points - x.points || y.setDiff - x.setDiff || y.gameDiff - x.gameDiff
-    );
-    rows.forEach((r, i) => (r.qualifies = i < 2));
-    return { groupId: gid, rows };
-  });
+  return standings.map(({ groupId, rows }) => ({
+    groupId,
+    rows: rows.map((r, i) => ({
+      competitorId: r.competitorId,
+      name: nameById.get(r.competitorId) ?? "?",
+      played: r.played,
+      wins: r.wins,
+      setDiff: r.setDiff,
+      gameDiff: r.gameDiff,
+      points: r.points,
+      setPct: r.setPct,
+      gamePct: r.gamePct,
+      qualifies: i < qualifiersPerGroup,
+    })),
+  }));
 }

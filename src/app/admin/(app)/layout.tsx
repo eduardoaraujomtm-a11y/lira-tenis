@@ -16,13 +16,17 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/admin/login");
+  const role = (user.app_metadata?.role as string) ?? "organizador";
+  const isMesario = role === "mesario";
 
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-20 bg-lira-purple-dark text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div>
-            <p className="text-xs font-semibold text-lira-yellow">Painel do organizador</p>
+            <p className="text-xs font-semibold text-lira-yellow">
+              {isMesario ? "Painel do mesário" : "Painel do organizador"}
+            </p>
             <Link href="/admin" className="text-base font-extrabold">
               Mesa de jogos
             </Link>
@@ -34,9 +38,12 @@ export default async function AdminLayout({
             <LogoutButton />
           </div>
         </div>
-        <AdminNav />
+        <AdminNav isMesario={isMesario} />
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4">{children}</main>
+      <p className="mx-auto w-full max-w-3xl px-4 pb-3 pt-2 text-right text-[9px] text-muted/50">
+        © Eduardo Araújo
+      </p>
     </div>
   );
 }

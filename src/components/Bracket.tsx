@@ -6,12 +6,16 @@ function BracketSlot({ side, live }: { side: SideView; live: boolean }) {
   const score = side.sets.map((s) => `${s.games}`).join(" ");
   return (
     <div
-      className={`flex items-center justify-between gap-2 px-2 py-1.5 text-xs ${
+      className={`flex items-center gap-2 px-2 py-1.5 text-xs ${
         side.winner ? "font-bold text-foreground" : "text-muted"
       }`}
     >
-      <span className="truncate">{side.name}</span>
-      {score && <span className="tabular-nums text-[11px] text-muted">{score}</span>}
+      <span className="flex-1 truncate">{side.name}</span>
+      {score && (
+        <span className="shrink-0 text-right font-semibold tabular-nums text-accent">
+          {score}
+        </span>
+      )}
       {live && <span className="live-dot h-1.5 w-1.5 shrink-0 rounded-full bg-live" />}
     </div>
   );
@@ -40,7 +44,7 @@ export function Bracket({ groups }: { groups: BracketGroup[] }) {
       <div className="flex min-w-max gap-4">
         {groups.map((g) => (
           <div key={g.phase} className="flex w-44 flex-col justify-around gap-4">
-            <h4 className="text-center text-[11px] font-bold uppercase tracking-wide text-lira-purple">
+            <h4 className="text-center text-[11px] font-bold uppercase tracking-wide text-accent">
               {g.phaseLabel}
             </h4>
             <div className="flex flex-1 flex-col justify-around gap-4">

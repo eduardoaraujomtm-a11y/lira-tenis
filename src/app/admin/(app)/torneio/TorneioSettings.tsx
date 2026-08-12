@@ -113,7 +113,7 @@ export function TorneioSettings() {
   return (
     <div className="space-y-5">
       {error && <p className="text-sm text-live">{error}</p>}
-      {msg && <p className="text-sm font-semibold text-lira-purple">{msg}</p>}
+      {msg && <p className="text-sm font-semibold text-accent">{msg}</p>}
 
       {/* Dados gerais */}
       <section className="rounded-xl border border-border bg-card p-3">
@@ -144,7 +144,7 @@ export function TorneioSettings() {
           {(tour.days ?? []).map((d) => (
             <span
               key={d}
-              className="inline-flex items-center gap-1.5 rounded-full bg-lira-purple-soft px-3 py-1 text-xs font-medium text-lira-purple"
+              className="inline-flex items-center gap-1.5 rounded-full bg-lira-purple-soft px-3 py-1 text-xs font-medium text-accent"
             >
               {formatDay(d)}
               <button onClick={() => removeDay(d)} className="text-live" title="Remover">
@@ -181,7 +181,7 @@ export function TorneioSettings() {
           {courts.map((c) => (
             <span
               key={c.id}
-              className="inline-flex items-center gap-1.5 rounded-full bg-lira-purple-soft px-3 py-1 text-xs font-medium text-lira-purple"
+              className="inline-flex items-center gap-1.5 rounded-full bg-lira-purple-soft px-3 py-1 text-xs font-medium text-accent"
             >
               {c.name}
               <button onClick={() => removeCourt(c.id)} className="text-live" title="Remover">

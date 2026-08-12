@@ -9,9 +9,12 @@ import { MatchCard } from "./MatchCard";
 export function FilterableMatches({
   matches,
   emptyLabel = "Nenhum jogo encontrado.",
+  categoryOrder,
 }: {
   matches: MatchView[];
   emptyLabel?: string;
+  /** IDs de categoria na ordem de exibição desejada (sort_order do torneio). */
+  categoryOrder?: string[];
 }) {
   const [cat, setCat] = useState<string>("all");
   const [day, setDay] = useState<string>("all");
@@ -21,12 +24,17 @@ export function FilterableMatches({
     () => Array.from(new Set(matches.map((m) => m.day))).sort(),
     [matches]
   );
-  // Categorias presentes, preservando ordem de aparição
+  // Categorias presentes, ordenadas pelo sort_order do torneio (quando informado).
   const cats = useMemo(() => {
     const seen = new Map<string, string>();
     for (const m of matches) if (!seen.has(m.categoryId)) seen.set(m.categoryId, m.categoryShort);
-    return Array.from(seen.entries());
-  }, [matches]);
+    const entries = Array.from(seen.entries());
+    if (!categoryOrder) return entries;
+    const rank = new Map(categoryOrder.map((id, i) => [id, i]));
+    return entries.sort(
+      (a, b) => (rank.get(a[0]) ?? Infinity) - (rank.get(b[0]) ?? Infinity)
+    );
+  }, [matches, categoryOrder]);
 
   const q = query.trim().toLowerCase();
   const filtered = matches
@@ -67,7 +75,7 @@ export function FilterableMatches({
         />
         {q && nextGame && (
           <div className="mt-2 rounded-lg border border-lira-yellow/60 bg-lira-yellow/15 px-3 py-2 text-sm">
-            <span className="font-bold text-lira-purple">
+            <span className="font-bold text-accent">
               {nextGame.isLive ? "🔴 Jogo ao vivo agora" : "🔔 Seu próximo jogo"}:
             </span>{" "}
             {nextGame.a.name} × {nextGame.b.name}
@@ -107,13 +115,21 @@ export function FilterableMatches({
       {grouped.length === 0 ? (
         <p className="mt-8 text-center text-sm text-muted">{emptyLabel}</p>
       ) : (
-        <div className="mt-4 space-y-5">
+        <div className="mt-4 space-y-4">
           {grouped.map(([d, ms]) => (
             <section key={d}>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-                {formatDay(d)}
+              {/* Fica grudado no topo enquanto se rola o dia — em lista longa,
+                  é o que diz onde você está sem precisar voltar. */}
+              <h3 className="sticky top-0 z-10 -mx-1 mb-1.5 flex items-center gap-2 bg-background/95 px-1 py-1.5 backdrop-blur">
+                <span className="h-4 w-1 rounded-full bg-lira-yellow" />
+                <span className="text-sm font-extrabold uppercase tracking-wide text-accent">
+                  {formatDay(d)}
+                </span>
+                <span className="text-[11px] font-semibold text-muted">
+                  {ms.length} jogo{ms.length === 1 ? "" : "s"}
+                </span>
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {ms.map((m) => (
                   <MatchCard key={m.id} match={m} />
                 ))}
@@ -142,7 +158,7 @@ function ChipRow({
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
         {label}
       </p>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-2">
         {options.map((o) => (
           <button
             key={o.value}

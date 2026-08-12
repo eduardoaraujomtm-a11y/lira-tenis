@@ -9,13 +9,16 @@ const items = [
   { href: "/admin/atletas", label: "Atletas" },
   { href: "/admin/chaveamento", label: "Chaveamento" },
   { href: "/admin/agenda", label: "Agenda" },
+  { href: "/admin/administradores", label: "Admins" },
 ];
 
-export function AdminNav() {
+export function AdminNav({ isMesario = false }: { isMesario?: boolean }) {
   const pathname = usePathname();
+  // Mesário só vê a Mesa
+  const visible = isMesario ? items.filter((it) => it.href === "/admin") : items;
   return (
     <nav className="mx-auto flex max-w-3xl gap-1 overflow-x-auto px-4 pb-2">
-      {items.map((it) => {
+      {visible.map((it) => {
         const active = it.exact
           ? pathname === it.href
           : pathname.startsWith(it.href);

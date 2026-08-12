@@ -7,12 +7,28 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://lira-tenis.vercel.app";
+const TITLE = "Lira Tênis Clube · Torneio 100 Anos";
+const DESCRIPTION =
+  "Chaves, agenda, jogos ao vivo e resultados do Torneio 100 Anos do Lira Tênis Clube.";
+
 export const metadata: Metadata = {
-  title: "Lira Tênis Clube · Torneio 100 Anos",
-  description:
-    "Chaves, agenda, jogos ao vivo e resultados do Torneio 100 Anos do Lira Tênis Clube.",
+  // Sem isto, a prévia do link apontaria para a URL do deploy da vez em vez do
+  // domínio fixo do torneio.
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Lira Tênis", statusBarStyle: "black-translucent" },
+  openGraph: {
+    type: "website",
+    siteName: "Lira Tênis Clube",
+    locale: "pt_BR",
+    url: SITE_URL,
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {

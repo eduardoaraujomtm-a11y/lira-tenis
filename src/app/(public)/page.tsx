@@ -32,7 +32,7 @@ export default async function Home() {
                 className="flex items-center justify-between gap-2 rounded-xl border border-lira-yellow/50 bg-card p-3"
               >
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-lira-purple">{c.categoryShort}</p>
+                  <p className="text-[11px] font-semibold text-accent">{c.categoryShort}</p>
                   <p className="truncate text-sm font-bold">🏆 {c.champion}</p>
                 </div>
               </div>
@@ -56,18 +56,18 @@ export default async function Home() {
 
       <section>
         <SectionTitle title="Próximos jogos" href="/agenda" />
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {upcoming.map((m) => (
-            <MatchCard key={m.id} match={m} />
+            <MatchCard key={m.id} match={m} showDay />
           ))}
         </div>
       </section>
 
       <section>
         <SectionTitle title="Últimos resultados" href="/resultados" />
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {recent.map((m) => (
-            <MatchCard key={m.id} match={m} />
+            <MatchCard key={m.id} match={m} showDay />
           ))}
         </div>
       </section>
@@ -78,9 +78,9 @@ export default async function Home() {
 function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
     <div className="mb-2 flex items-center justify-between">
-      <h2 className="text-base font-extrabold text-foreground">{title}</h2>
+      <h2 className="text-lg font-extrabold text-foreground">{title}</h2>
       {href && (
-        <Link href={href} className="text-xs font-semibold text-lira-purple">
+        <Link href={href} className="text-sm font-semibold text-accent">
           Ver tudo →
         </Link>
       )}

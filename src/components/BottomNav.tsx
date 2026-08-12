@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SHOW_RANKING } from "@/lib/features";
 
 const items = [
   { href: "/", label: "Início", icon: "🏠" },
@@ -9,6 +10,7 @@ const items = [
   { href: "/agenda", label: "Agenda", icon: "📅" },
   { href: "/chaves", label: "Chaves", icon: "🎾" },
   { href: "/resultados", label: "Resultados", icon: "🏆" },
+  ...(SHOW_RANKING ? [{ href: "/ranking", label: "Ranking", icon: "📊" }] : []),
 ];
 
 export function BottomNav() {
@@ -23,12 +25,12 @@ export function BottomNav() {
             <Link
               key={it.href}
               href={it.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
-                active ? "text-lira-purple" : "text-muted"
+              className={`flex flex-1 flex-col items-center gap-0.5 px-0.5 py-2 text-[10px] font-medium whitespace-nowrap transition-colors ${
+                active ? "text-accent" : "text-muted"
               }`}
             >
               <span
-                className={`text-lg leading-none ${
+                className={`text-base leading-none ${
                   active ? "" : "opacity-60 grayscale"
                 }`}
               >

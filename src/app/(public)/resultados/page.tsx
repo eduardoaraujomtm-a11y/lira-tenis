@@ -1,22 +1,33 @@
 import Link from "next/link";
 import { FilterableMatches } from "@/components/FilterableMatches";
-import { getFinishedMatches } from "@/lib/repo";
+import { getFinishedMatches, getCategories } from "@/lib/repo";
+import { RealtimeRefresher } from "@/components/RealtimeRefresher";
+import { SHOW_RANKING } from "@/lib/features";
 
 export const metadata = { title: "Resultados · Lira Tênis" };
 
 export default async function ResultadosPage() {
-  const finished = await getFinishedMatches();
+  const [finished, categories] = await Promise.all([getFinishedMatches(), getCategories()]);
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <RealtimeRefresher />
+      <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-xl font-extrabold">Resultados</h2>
-        <Link href="/campeoes" className="text-sm font-semibold text-lira-purple">
-          🏆 Campeões →
-        </Link>
+        <div className="flex shrink-0 items-center gap-3">
+          {SHOW_RANKING && (
+            <Link href="/ranking" className="text-sm font-semibold text-accent">
+              📊 Ranking →
+            </Link>
+          )}
+          <Link href="/campeoes" className="text-sm font-semibold text-accent">
+            🏆 Campeões →
+          </Link>
+        </div>
       </div>
       <FilterableMatches
         matches={finished}
         emptyLabel="Nenhum resultado com esses filtros."
+        categoryOrder={categories.map((c) => c.id)}
       />
     </div>
   );

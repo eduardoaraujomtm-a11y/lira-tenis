@@ -51,7 +51,11 @@ export function ChavesView({ data }: { data: CategoryBracket[] }) {
           <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">
             Classificação dos grupos
           </h3>
-          <GroupStandings groups={current.groups} advancing={showKnockout} />
+          <GroupStandings
+            groups={current.groups}
+            advancing={showKnockout}
+            qualifiersPerGroup={cat.qualifiersPerGroup}
+          />
         </section>
       )}
 

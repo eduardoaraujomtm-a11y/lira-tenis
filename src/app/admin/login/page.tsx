@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { BrandMark } from "@/components/Brand";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,8 +33,15 @@ export default function LoginPage() {
         onSubmit={onSubmit}
         className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-sm"
       >
-        <div className="mb-5 flex flex-col items-center gap-2 text-center">
-          <BrandMark size={56} />
+        <div className="mb-5 flex flex-col items-center gap-3 text-center">
+          <Image
+            src="/logo-100anos.png"
+            alt="Lira Tênis Clube — 100 Anos"
+            width={1000}
+            height={417}
+            priority
+            className="h-16 w-auto"
+          />
           <h1 className="text-lg font-extrabold">Painel do organizador</h1>
           <p className="text-sm text-muted">Acesso restrito à mesa e à organização.</p>
         </div>

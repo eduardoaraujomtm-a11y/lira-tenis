@@ -44,6 +44,8 @@ export interface Category {
   type: CompetitorType;
   format: Format;
   rule: ScoreRule;
+  /** Quantos competidores de cada grupo avançam ao mata-mata (2 ou 4). */
+  qualifiersPerGroup: number;
 }
 
 export interface Competitor {
@@ -131,6 +133,9 @@ export interface MatchView {
   point?: { server?: "A" | "B"; a: string; b: string };
   /** Texto para busca por nome (nomes completos + categoria, minúsculo). */
   searchText: string;
+  /** Encadeamento do mata-mata (para desenhar a chave na ordem certa). */
+  nextMatchId?: string;
+  nextSlot?: "A" | "B";
 }
 
 export interface Champion {
@@ -148,6 +153,7 @@ export interface CategoryView {
   shortName: string;
   type: CompetitorType;
   format: Format;
+  qualifiersPerGroup: number;
 }
 
 export interface StandingRow {
@@ -158,6 +164,10 @@ export interface StandingRow {
   setDiff: number;
   gameDiff: number;
   points: number;
+  /** % de sets ganhos (0..1). Super tie-break conta como set normal. */
+  setPct: number;
+  /** % de games ganhos (0..1). Games do super tie-break são descartados. */
+  gamePct: number;
   qualifies: boolean;
 }
 

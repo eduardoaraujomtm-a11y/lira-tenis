@@ -5,6 +5,8 @@
   --color-lira-purple: #3b2a8c;
   --color-lira-purple-dark: #241a5c;
   --color-lira-purple-soft: #efedf9;
+  /* Cor de destaque para TEXTO (adapta ao tema): roxo no claro, lavanda no escuro */
+  --color-accent: #3b2a8c;
   --color-lira-yellow: #f5df3d;
   --color-lira-yellow-dark: #e4c817;
 
@@ -25,9 +27,10 @@
     --color-background: #12102a;
     --color-foreground: #f2f1fa;
     --color-card: #1c1940;
-    --color-muted: #a19dc0;
+    --color-muted: #b4afd6;
     --color-border: #2b2758;
-    --color-lira-purple-soft: #241f4d;
+    --color-lira-purple-soft: #322a63;
+    --color-accent: #b7abf7;
   }
 }
 

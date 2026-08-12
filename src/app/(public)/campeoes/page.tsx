@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { getChampions } from "@/lib/repo";
+import { SHOW_RANKING } from "@/lib/features";
 import type { Champion } from "@/lib/types";
 
 export const metadata = { title: "Campeões · Lira Tênis" };
@@ -37,7 +39,14 @@ export default async function CampeoesPage() {
   const champions = await getChampions();
   return (
     <div>
-      <h2 className="mb-1 text-xl font-extrabold">Campeões 🏆</h2>
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-xl font-extrabold">Campeões 🏆</h2>
+        {SHOW_RANKING && (
+          <Link href="/ranking" className="text-sm font-semibold text-accent">
+            📊 Ranking →
+          </Link>
+        )}
+      </div>
       <p className="mb-4 text-sm text-muted">Torneio 100 Anos · Lira Tênis Clube</p>
 
       {champions.length === 0 ? (

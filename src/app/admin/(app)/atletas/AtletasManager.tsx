@@ -91,7 +91,7 @@ export function AtletasManager() {
                     className="flex-1 rounded border border-border bg-background px-2 py-1 text-sm"
                     autoFocus
                   />
-                  <button onClick={() => save(a.id)} className="text-sm font-semibold text-lira-purple">
+                  <button onClick={() => save(a.id)} className="text-sm font-semibold text-accent">
                     Salvar
                   </button>
                   <button onClick={() => setEditing(null)} className="text-sm text-muted">
@@ -107,7 +107,7 @@ export function AtletasManager() {
                         setEditing(a.id);
                         setEditName(a.name);
                       }}
-                      className="text-sm text-muted hover:text-lira-purple"
+                      className="text-sm text-muted hover:text-accent"
                     >
                       Editar
                     </button>

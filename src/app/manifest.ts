@@ -10,8 +10,10 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#3b2a8c",
     theme_color: "#3b2a8c",
+    // Servido de /public para ter uma URL estável — os ícones de app/ ganham
+    // um hash no nome a cada build.
     icons: [
-      { src: "/icon", sizes: "512x512", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
   };
 }

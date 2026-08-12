@@ -5,6 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { CompetitorType, Format } from "@/lib/types";
 import { FORMAT_OPTIONS, TYPE_OPTIONS, RULE_PRESETS, formatShort } from "@/lib/rules";
+import { downloadTournamentPdf } from "@/lib/pdf/TournamentPdf";
+import { shortName as shortenName } from "@/lib/tennis";
 
 interface Cat {
   id: string;
@@ -13,6 +15,7 @@ interface Cat {
   type: CompetitorType;
   format: Format;
   sort_order: number;
+  qualifiers_per_group: number;
 }
 
 export function CategoriasManager() {
@@ -23,6 +26,8 @@ export function CategoriasManager() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [reordering, setReordering] = useState(false);
 
   // form
   const [name, setName] = useState("");
@@ -33,7 +38,10 @@ export function CategoriasManager() {
 
   const load = useCallback(async () => {
     const [catRes, tourRes] = await Promise.all([
-      supabase.from("categories").select("id,name,short_name,type,format,sort_order").order("sort_order"),
+      supabase
+        .from("categories")
+        .select("id,name,short_name,type,format,sort_order,qualifiers_per_group")
+        .order("sort_order"),
       supabase.from("tournaments").select("id").limit(1).single(),
     ]);
     setCats((catRes.data as Cat[]) ?? []);
@@ -64,7 +72,7 @@ export function CategoriasManager() {
       sort_order: nextOrder,
     });
     if (error) {
-      setError("Erro ao criar. Você rodou a migração e está logado?");
+      setError("Erro ao criar categoria: " + error.message);
       setBusy(false);
       return;
     }
@@ -75,17 +83,134 @@ export function CategoriasManager() {
     setBusy(false);
   }
 
+  /**
+   * Troca a categoria de lugar e renumera todas de 1..n. Renumerar (em vez de
+   * só trocar os dois valores) conserta buracos e empates deixados por
+   * categorias excluídas e recriadas, que entram sempre no fim da fila.
+   */
+  async function move(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= cats.length) return;
+    const next = [...cats];
+    [next[index], next[target]] = [next[target], next[index]];
+    setCats(next); // resposta imediata; o banco confirma logo em seguida
+    setReordering(true);
+    setError(null);
+    const results = await Promise.all(
+      next.map((c, i) =>
+        supabase.from("categories").update({ sort_order: i + 1 }).eq("id", c.id)
+      )
+    );
+    setReordering(false);
+    if (results.some((r) => r.error)) {
+      setError("Não foi possível salvar a nova ordem.");
+      await load(); // volta ao que está gravado, para a tela não mentir
+    }
+  }
+
+  async function generatePdf() {
+    setGeneratingPdf(true);
+    setError(null);
+    try {
+      const [tourRes, compRes, matchRes] = await Promise.all([
+        supabase.from("tournaments").select("name,edition").limit(1).single(),
+        supabase
+          .from("competitors")
+          .select("id,category_id,group_id,athletes:competitor_athletes(position,athlete:athletes(name))"),
+        supabase
+          .from("matches")
+          .select(
+            "id,category_id,phase,group_id,day,time,status,competitor_a,competitor_b,label_a,label_b,sets,winner_id,court:courts(name)"
+          ),
+      ]);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawComps = (compRes.data as any[]) ?? [];
+      const competitors = rawComps.map((c) => ({
+        id: c.id as string,
+        categoryId: c.category_id as string,
+        groupId: (c.group_id as string) ?? null,
+        name:
+          (c.athletes ?? [])
+            .slice()
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .sort((x: any, y: any) => x.position - y.position)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((a: any) => shortenName(a.athlete?.name ?? "?"))
+            .join(" / ") || "—",
+      }));
+      const nameById = new Map(competitors.map((c) => [c.id, c.name]));
+      // Sem competidor definido, cai na previsão gravada ("2º do Grupo B").
+      const nameOf = (id: string | null, label?: string | null) =>
+        id ? nameById.get(id) ?? "?" : label || "A definir";
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawMatches = (matchRes.data as any[]) ?? [];
+      const matches = rawMatches.map((m) => ({
+        id: m.id as string,
+        categoryId: m.category_id as string,
+        phase: m.phase,
+        groupId: (m.group_id as string) ?? null,
+        day: m.day as string,
+        time: m.time as string,
+        status: m.status as string,
+        courtName: (m.court?.name as string) ?? null,
+        aId: (m.competitor_a as string) ?? null,
+        bId: (m.competitor_b as string) ?? null,
+        nameA: nameOf(m.competitor_a, m.label_a),
+        nameB: nameOf(m.competitor_b, m.label_b),
+        sets: ((m.sets as { a: number; b: number; tbA?: number; tbB?: number }[]) ?? []).map(
+          (s) => ({ a: s.a, b: s.b, tbA: s.tbA, tbB: s.tbB })
+        ),
+        winnerId: (m.winner_id as string) ?? null,
+      }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tour = tourRes.data as any;
+      const tournamentLabel = [tour?.name, tour?.edition].filter(Boolean).join(" ") || "Torneio";
+
+      await downloadTournamentPdf({
+        tournamentLabel,
+        categories: cats.map((c) => ({
+          id: c.id,
+          name: c.name,
+          shortName: c.short_name,
+          type: c.type,
+          format: c.format,
+          qualifiersPerGroup: c.qualifiers_per_group ?? 2,
+        })),
+        competitors,
+        matches,
+        fileName: `${tournamentLabel.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+      });
+    } catch {
+      setError("Erro ao gerar o PDF. Tente novamente.");
+    }
+    setGeneratingPdf(false);
+  }
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">Monte as duplas e gere as chaves de cada categoria.</p>
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="rounded-lg bg-lira-purple px-3 py-1.5 text-sm font-bold text-white"
-        >
-          {open ? "Fechar" : "＋ Nova categoria"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={generatePdf}
+            disabled={generatingPdf || cats.length === 0}
+            className="rounded-lg border border-lira-purple px-3 py-1.5 text-sm font-bold text-accent disabled:opacity-60"
+          >
+            {generatingPdf ? "Gerando…" : "📄 Gerar PDF"}
+          </button>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="rounded-lg bg-lira-purple px-3 py-1.5 text-sm font-bold text-white"
+          >
+            {open ? "Fechar" : "＋ Nova categoria"}
+          </button>
+        </div>
       </div>
+
+      {error && !open && <p className="mb-3 text-sm text-live">{error}</p>}
 
       {open && (
         <form onSubmit={create} className="mb-4 rounded-xl border border-border bg-card p-3">
@@ -169,23 +294,51 @@ export function CategoriasManager() {
       ) : cats.length === 0 ? (
         <p className="text-sm text-muted">Nenhuma categoria ainda. Crie a primeira acima.</p>
       ) : (
-        <div className="space-y-2">
-          {cats.map((c) => (
-            <Link
-              key={c.id}
-              href={`/admin/chaveamento/${c.id}`}
-              className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div>
-                <p className="text-sm font-bold">{c.name}</p>
-                <p className="text-xs text-muted">
-                  {c.type === "duplas" ? "Duplas" : "Simples"} · {formatShort(c.format)}
-                </p>
+        <>
+          <p className="mb-1 text-xs text-muted">
+            Esta ordem vale para o app, o PDF e os filtros. Use as setas para
+            reordenar.
+          </p>
+          <div className="space-y-2">
+            {cats.map((c, i) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-2 rounded-xl border border-border bg-card p-3 shadow-sm"
+              >
+                <div className="flex shrink-0 flex-col">
+                  <button
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0 || reordering}
+                    aria-label={`Mover ${c.short_name} para cima`}
+                    className="px-1 text-xs leading-tight text-accent disabled:opacity-25"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => move(i, 1)}
+                    disabled={i === cats.length - 1 || reordering}
+                    aria-label={`Mover ${c.short_name} para baixo`}
+                    className="px-1 text-xs leading-tight text-accent disabled:opacity-25"
+                  >
+                    ▼
+                  </button>
+                </div>
+                <Link
+                  href={`/admin/chaveamento/${c.id}`}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{c.name}</p>
+                    <p className="text-xs text-muted">
+                      {c.type === "duplas" ? "Duplas" : "Simples"} · {formatShort(c.format)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-accent">→</span>
+                </Link>
               </div>
-              <span className="text-lira-purple">→</span>
-            </Link>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

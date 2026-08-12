@@ -10,7 +10,7 @@ export default function AdminAgendaPage() {
       <p className="mb-4 text-sm text-muted">
         Ajuste dia, horário e quadra de cada jogo. As mudanças salvam sozinhas. Os
         dias e as quadras disponíveis são definidos em{" "}
-        <Link href="/admin/torneio" className="font-semibold text-lira-purple underline">
+        <Link href="/admin/torneio" className="font-semibold text-accent underline">
           Torneio
         </Link>
         .

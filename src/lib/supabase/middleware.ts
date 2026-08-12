@@ -45,5 +45,18 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Mesário só pode ver a Mesa (/admin) e a mesa de cada jogo (/admin/jogo/*)
+  if (user && isAdmin && !isLogin) {
+    const role = (user.app_metadata?.role as string) ?? "organizador";
+    if (role === "mesario") {
+      const allowed = path === "/admin" || path.startsWith("/admin/jogo");
+      if (!allowed) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin";
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return response;
 }

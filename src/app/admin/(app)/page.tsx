@@ -11,7 +11,7 @@ function AdminMatchRow({ m }: { m: MatchView }) {
     >
       <div className="min-w-0">
         <div className="mb-0.5 flex items-center gap-2 text-[11px] text-muted">
-          <span className="font-semibold text-lira-purple">{m.categoryShort}</span>
+          <span className="font-semibold text-accent">{m.categoryShort}</span>
           <span>· {m.phaseLabel}</span>
           {m.isLive && (
             <span className="inline-flex items-center gap-1 font-bold text-live">

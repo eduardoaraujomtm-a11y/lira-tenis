@@ -41,6 +41,25 @@ const PHASE_LABEL: Record<string, string> = {
   terceiro: "Disputa de 3º lugar",
 };
 
+/** Um set em edição. Texto, não número, para o campo poder ficar vazio enquanto se digita. */
+interface DraftSet {
+  a: string;
+  b: string;
+  tbA: string;
+  tbB: string;
+}
+
+/** Quem venceu, contando os sets. `undefined` quando está empatado. */
+function winnerBySets(sets: MatchScore["sets"]): "A" | "B" | undefined {
+  let a = 0;
+  let b = 0;
+  for (const s of sets) {
+    if (s.a > s.b) a++;
+    else if (s.b > s.a) b++;
+  }
+  return a === b ? undefined : a > b ? "A" : "B";
+}
+
 function nameFrom(c: { athletes?: { position: number; athlete: { name: string } | null }[] } | null) {
   if (!c?.athletes) return "A definir";
   return [...c.athletes]
@@ -58,6 +77,10 @@ export function MesaJogo({ matchId }: { matchId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmWO, setConfirmWO] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<DraftSet[]>([]);
+  const [draftWinner, setDraftWinner] = useState<"auto" | "A" | "B">("auto");
 
   // Carrega o jogo
   useEffect(() => {
@@ -175,23 +198,131 @@ export function MesaJogo({ matchId }: { matchId: string }) {
     setConfirmWO(false);
   }
 
+  const compOf = (s: "A" | "B" | undefined) =>
+    s === "A" ? match?.competitorA ?? null : s === "B" ? match?.competitorB ?? null : null;
+
+  // O vencedor gravado no banco pode estar defasado quando o jogo foi encerrado
+  // agora mesmo, nesta sessão — o placar em memória é a fonte mais atual.
+  const currentWinnerId = compOf(score?.winner) ?? match?.winnerId ?? null;
+
+  /**
+   * Ajusta a vaga deste jogo no confronto seguinte. Sem isto, fechar a mesa ou
+   * trocar o vencedor deixaria a dupla antiga presa na próxima rodada.
+   */
+  async function syncAdvance(previous: string | null, next: string | null) {
+    if (!match?.nextMatchId || !match.nextSlot || previous === next) return;
+    const col = match.nextSlot === "A" ? "competitor_a" : "competitor_b";
+    let q = supabase.from("matches").update({ [col]: next }).eq("id", match.nextMatchId);
+    // Só mexe se a vaga ainda for de quem saiu daqui.
+    if (previous) q = q.eq(col, previous);
+    await q;
+  }
+
+  /** Jogo aberto por engano: volta para "agendado" e limpa o placar. */
+  async function closeTable() {
+    if (!match) return;
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase
+      .from("matches")
+      .update({ sets: [], live: null, status: "agendado", winner_id: null })
+      .eq("id", match.id);
+    if (error) {
+      setError("Não foi possível fechar a mesa.");
+      setSaving(false);
+      return;
+    }
+    await syncAdvance(currentWinnerId, null);
+    setMatch({ ...match, status: "agendado", sets: [], live: null, winnerId: null });
+    setScore(null);
+    setHistory([]);
+    setConfirmClose(false);
+    setSaving(false);
+  }
+
+  function openEditor() {
+    const sets = score?.sets ?? match?.sets ?? [];
+    setDraft(
+      sets.map((s) => ({
+        a: String(s.a),
+        b: String(s.b),
+        tbA: s.tbA !== undefined ? String(s.tbA) : "",
+        tbB: s.tbB !== undefined ? String(s.tbB) : "",
+      }))
+    );
+    setDraftWinner("auto");
+    setEditing(true);
+  }
+
+  const draftSets: MatchScore["sets"] = draft.map((d) => {
+    const tbA = d.tbA.trim() === "" ? undefined : Number(d.tbA);
+    const tbB = d.tbB.trim() === "" ? undefined : Number(d.tbB);
+    return {
+      a: Number(d.a || 0),
+      b: Number(d.b || 0),
+      ...(tbA !== undefined && tbB !== undefined ? { tbA, tbB } : {}),
+    };
+  });
+  const draftAuto = winnerBySets(draftSets);
+  const effectiveWinner = draftWinner === "auto" ? draftAuto : draftWinner;
+
+  /** Grava o placar corrigido e reposiciona o vencedor na chave. */
+  async function saveEdit() {
+    if (!match) return;
+    if (draft.some((d) => d.a.trim() === "" || d.b.trim() === "")) {
+      setError("Preencha os games dos dois lados em cada set.");
+      return;
+    }
+    if (!effectiveWinner) {
+      setError("Os sets estão empatados — escolha o vencedor.");
+      return;
+    }
+    const previous = currentWinnerId;
+    const winnerComp = compOf(effectiveWinner);
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        sets: draftSets,
+        live: null,
+        status: "finalizado",
+        winner_id: winnerComp,
+      })
+      .eq("id", match.id);
+    if (error) {
+      setError("Não foi possível salvar a correção.");
+      setSaving(false);
+      return;
+    }
+    await syncAdvance(previous, winnerComp);
+    setMatch({ ...match, status: "finalizado", sets: draftSets, winnerId: winnerComp });
+    setScore({ sets: draftSets, live: null, status: "finalizado", winner: effectiveWinner });
+    setHistory([]);
+    setEditing(false);
+    setSaving(false);
+  }
+
   if (error && !match)
     return <p className="text-center text-sm text-live">{error}</p>;
   if (!match) return <p className="text-center text-sm text-muted">Carregando…</p>;
 
-  const started = !!score && match.status !== "agendado";
+  // "started" vem do score em memória (que é o que start() atualiza),
+  // não do match.status carregado só uma vez. Assim, os controles aparecem
+  // imediatamente após clicar em "Iniciar jogo" — sem precisar recarregar.
+  const started = !!score;
   const m = score ? mode(score.sets, match.rule) : "game";
   const finished = score?.status === "finalizado";
   const isTb = m === "tiebreak" || m === "super";
 
   return (
     <div>
-      <Link href="/admin" className="mb-3 inline-block text-xs font-semibold text-lira-purple">
+      <Link href="/admin" className="mb-3 inline-block text-xs font-semibold text-accent">
         ← Voltar à mesa
       </Link>
 
       <div className="mb-1 flex items-center gap-2 text-xs text-muted">
-        <span className="font-semibold text-lira-purple">{match.categoryShort}</span>
+        <span className="font-semibold text-accent">{match.categoryShort}</span>
         <span>· {match.phaseLabel}</span>
         <span>· {match.courtName ?? "quadra a definir"}</span>
       </div>
@@ -214,7 +345,7 @@ export function MesaJogo({ matchId }: { matchId: string }) {
           winner={score?.winner === "B"}
         />
         {started && !finished && (
-          <div className="bg-lira-purple-soft px-3 py-1.5 text-center text-xs font-bold text-lira-purple">
+          <div className="bg-lira-purple-soft px-3 py-1.5 text-center text-xs font-bold text-accent">
             {m === "game" ? "Contagem por games" : m === "super" ? `Super Tie-break (até ${match.rule.superTiebreakTo})` : `Tie-break (até ${match.rule.tiebreakTo})`}
             {isTb && score?.live && ` — ${score.live.a} x ${score.live.b}`}
           </div>
@@ -225,14 +356,142 @@ export function MesaJogo({ matchId }: { matchId: string }) {
 
       {/* Controles */}
       {finished ? (
-        <div className="rounded-xl border border-win/40 bg-win/10 p-4 text-center">
-          <p className="text-sm font-bold text-win">
-            🏆 Vencedor: {score?.winner === "A" ? match.nameA : match.nameB}
-          </p>
-          {match.nextMatchId && (
-            <p className="mt-1 text-xs text-muted">Vencedor avançou automaticamente na chave.</p>
-          )}
-        </div>
+        editing ? (
+          <div className="rounded-xl border border-border bg-card p-3">
+            <p className="mb-2 text-sm font-bold">Corrigir resultado</p>
+            <div className="mb-2 space-y-2">
+              {draft.map((d, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <span className="w-12 shrink-0 text-xs font-semibold text-muted">
+                    Set {i + 1}
+                  </span>
+                  <NumBox
+                    value={d.a}
+                    onChange={(v) => setDraft((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x)))}
+                    label={match.nameA}
+                  />
+                  <span className="text-xs text-muted">×</span>
+                  <NumBox
+                    value={d.b}
+                    onChange={(v) => setDraft((s) => s.map((x, j) => (j === i ? { ...x, b: v } : x)))}
+                    label={match.nameB}
+                  />
+                  <span className="ml-1 text-[11px] text-muted">tie-break</span>
+                  <NumBox
+                    value={d.tbA}
+                    onChange={(v) => setDraft((s) => s.map((x, j) => (j === i ? { ...x, tbA: v } : x)))}
+                    label={`Tie-break ${match.nameA}`}
+                    muted
+                  />
+                  <NumBox
+                    value={d.tbB}
+                    onChange={(v) => setDraft((s) => s.map((x, j) => (j === i ? { ...x, tbB: v } : x)))}
+                    label={`Tie-break ${match.nameB}`}
+                    muted
+                  />
+                  <button
+                    onClick={() => setDraft((s) => s.filter((_, j) => j !== i))}
+                    aria-label={`Remover set ${i + 1}`}
+                    className="ml-auto rounded border border-border px-2 text-xs text-muted"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setDraft((s) => [...s, { a: "", b: "", tbA: "", tbB: "" }])}
+              className="mb-3 text-xs font-semibold text-accent underline"
+            >
+              + adicionar set
+            </button>
+
+            <div className="mb-3">
+              <label className="mb-1 block text-xs font-semibold text-muted">Vencedor</label>
+              <select
+                value={draftWinner}
+                onChange={(e) => setDraftWinner(e.target.value as "auto" | "A" | "B")}
+                className="w-full rounded-lg border border-border bg-background px-2 py-2 text-sm"
+              >
+                <option value="auto">
+                  Pelos sets
+                  {draftAuto
+                    ? ` — ${draftAuto === "A" ? match.nameA : match.nameB}`
+                    : " — empatado, escolha abaixo"}
+                </option>
+                <option value="A">{match.nameA}</option>
+                <option value="B">{match.nameB}</option>
+              </select>
+              <p className="mt-1 text-[11px] text-muted">
+                Deixe os campos de tie-break em branco nos sets que não tiveram.
+                Trocar o vencedor também troca quem passou para a próxima rodada.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={saveEdit}
+                disabled={saving}
+                className="flex-1 rounded-lg bg-lira-purple py-2 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {saving ? "Salvando…" : "Salvar correção"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  setError(null);
+                }}
+                className="rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="rounded-xl border border-win/40 bg-win/10 p-4 text-center">
+              <p className="text-sm font-bold text-win">
+                🏆 Vencedor: {score?.winner === "A" ? match.nameA : match.nameB}
+              </p>
+              {match.nextMatchId && (
+                <p className="mt-1 text-xs text-muted">Vencedor avançou automaticamente na chave.</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={openEditor}
+                className="flex-1 rounded-lg border border-border bg-card py-2 text-sm font-semibold text-foreground"
+              >
+                ✏️ Corrigir resultado
+              </button>
+              {!confirmClose ? (
+                <button
+                  onClick={() => setConfirmClose(true)}
+                  className="flex-1 rounded-lg border border-border bg-card py-2 text-sm font-semibold text-muted"
+                >
+                  Reabrir jogo
+                </button>
+              ) : (
+                <div className="flex flex-1 gap-2">
+                  <button
+                    onClick={closeTable}
+                    disabled={saving}
+                    className="flex-1 rounded-lg border border-live/40 bg-live/10 py-2 text-xs font-bold text-live disabled:opacity-60"
+                  >
+                    Apagar placar e reabrir
+                  </button>
+                  <button
+                    onClick={() => setConfirmClose(false)}
+                    className="rounded-lg border border-border px-2 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
       ) : !started ? (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="mb-2 text-sm font-semibold">Iniciar jogo</p>
@@ -306,6 +565,36 @@ export function MesaJogo({ matchId }: { matchId: string }) {
               </div>
             )}
           </div>
+          {!confirmClose ? (
+            <button
+              onClick={() => setConfirmClose(true)}
+              className="w-full rounded-lg border border-border bg-card py-2 text-xs font-semibold text-muted"
+            >
+              Fechar mesa (abri por engano)
+            </button>
+          ) : (
+            <div className="rounded-lg border border-live/40 bg-live/10 p-2">
+              <p className="mb-2 text-center text-xs text-live">
+                Apaga o placar e devolve o jogo para “agendado”. Se a rodada
+                seguinte já tiver começado, confira a chave depois.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={closeTable}
+                  disabled={saving}
+                  className="flex-1 rounded-lg border border-live/40 py-2 text-xs font-bold text-live disabled:opacity-60"
+                >
+                  Fechar mesa
+                </button>
+                <button
+                  onClick={() => setConfirmClose(false)}
+                  className="rounded-lg border border-border px-3 text-xs"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
           <p className="text-center text-[11px] text-muted">
             {saving ? "Salvando…" : "O placar aparece ao vivo no site instantaneamente."}
           </p>
@@ -330,8 +619,8 @@ function ScoreRow({
 }) {
   return (
     <div className={`flex items-center justify-between gap-2 px-3 py-3 ${winner ? "bg-win/5" : ""}`}>
-      <span className="flex items-center gap-2 truncate text-sm font-bold">
-        {serving && <span className="h-2 w-2 shrink-0 rounded-full bg-lira-yellow" title="Sacando" />}
+      <span className="flex items-center gap-2 truncate text-base font-bold">
+        {serving && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-lira-yellow" title="Sacando" />}
         {winner && <span className="text-win">▸</span>}
         <span className="truncate">{name}</span>
       </span>
@@ -344,8 +633,8 @@ function ScoreRow({
           return (
             <span
               key={i}
-              className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-1 text-base font-bold ${
-                last ? "bg-lira-purple text-white" : "bg-lira-purple-soft text-lira-purple"
+              className={`inline-flex h-9 min-w-9 items-center justify-center rounded px-1 text-lg font-bold ${
+                last ? "bg-lira-yellow text-lira-purple-dark" : "bg-lira-purple-soft text-accent"
               }`}
             >
               {games}
@@ -355,6 +644,31 @@ function ScoreRow({
         })}
       </span>
     </div>
+  );
+}
+
+/** Campo numérico curto usado na correção do placar. */
+function NumBox({
+  value,
+  onChange,
+  label,
+  muted,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  muted?: boolean;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 2))}
+      inputMode="numeric"
+      aria-label={label}
+      className={`w-11 rounded-lg border border-border px-2 py-1.5 text-center text-sm tabular-nums ${
+        muted ? "bg-background text-muted" : "bg-background font-bold"
+      }`}
+    />
   );
 }
 
