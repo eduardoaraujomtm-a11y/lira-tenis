@@ -72,9 +72,12 @@ export default async function RankingPage() {
       <div className="mt-4 rounded-xl border border-border bg-card p-3 text-xs text-muted">
         <p className="mb-1 font-bold text-foreground">Como a pontuação funciona</p>
         <p>
-          {P.win} pts por <b>vitória</b> · {P.participacao} de <b>participação</b> · bônus por fase:
-          eliminado nas oitavas +{P.oitavas}, quartas +{P.quartas}, semi +{P.semi}, vice +{P.vice},{" "}
-          <b>campeão +{P.campeao}</b>. Numa dupla, os dois atletas recebem os pontos.
+          {P.win} pts por <b>vitória</b> · {P.participacao} de <b>participação</b> · bônus por colocação:{" "}
+          <b>campeão +{P.campeao}</b>, vice +{P.vice}, 3º/4º +{P.semi}, quartas +{P.quartas}, oitavas +{P.oitavas}.
+        </p>
+        <p className="mt-1">
+          Em categorias só de grupos, a colocação final no grupo define o bônus (1º = campeão, 2º = vice, etc.).
+          Numa dupla, os dois atletas recebem os pontos.
         </p>
       </div>
     </div>

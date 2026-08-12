@@ -1,5 +1,5 @@
 // ===== Ranking de atletas por desempenho no torneio =====
-// Pontos = (vitórias × win) + participação + bônus da fase de eliminação.
+// Pontos = (vitórias × win) + participação + bônus da fase/colocação.
 // Os pontos de uma dupla vão para CADA atleta dela; cada atleta soma tudo.
 
 export type RankPhase =
@@ -16,8 +16,8 @@ export interface PointsConfig {
   oitavas: number; // eliminado nas oitavas
   quartas: number; // eliminado nas quartas
   semi: number; // eliminado na semi
-  vice: number; // vice-campeão (perdeu a final)
-  campeao: number; // campeão
+  vice: number; // vice-campeão (perdeu a final OU 2º do grupo em cat. só grupos)
+  campeao: number; // campeão (ganhou a final OU 1º do grupo em cat. só grupos)
 }
 
 export const DEFAULT_POINTS: PointsConfig = {
@@ -41,6 +41,12 @@ export interface RankMatch {
   bId: string | null;
   winnerId: string | null;
 }
+
+export interface PlacementBonus {
+  bonus: number;
+  isTitle: boolean;
+}
+
 export interface RankRow {
   athleteId: string;
   points: number;
@@ -77,7 +83,8 @@ function eliminationBonus(phase: RankPhase, cfg: PointsConfig): number {
 export function computeRanking(
   competitors: RankCompetitor[],
   matches: RankMatch[],
-  cfg: PointsConfig = DEFAULT_POINTS
+  cfg: PointsConfig = DEFAULT_POINTS,
+  placements: Map<string, PlacementBonus> = new Map()
 ): RankRow[] {
   const perAthlete = new Map<string, RankRow>();
   const add = (id: string, r: Partial<RankRow>) => {
@@ -101,20 +108,25 @@ export function computeRanking(
     let titles = 0;
     let bonus = 0;
 
-    const wonFinal = cm.some((m) => m.phase === "final" && m.winnerId === c.id);
-    if (wonFinal) {
-      bonus = cfg.campeao;
-      titles = 1;
+    const placement = placements.get(c.id);
+    if (placement) {
+      bonus = placement.bonus;
+      titles = placement.isTitle ? 1 : 0;
     } else {
-      // fase mais profunda em que perdeu no mata-mata = fase de eliminação
-      const losses = cm.filter(
-        (m) => m.phase !== "grupo" && m.phase !== "terceiro" && m.winnerId !== c.id
-      );
-      if (losses.length) {
-        const deepest = losses.reduce((a, b) =>
-          PHASE_DEPTH[b.phase] > PHASE_DEPTH[a.phase] ? b : a
+      const wonFinal = cm.some((m) => m.phase === "final" && m.winnerId === c.id);
+      if (wonFinal) {
+        bonus = cfg.campeao;
+        titles = 1;
+      } else {
+        const losses = cm.filter(
+          (m) => m.phase !== "grupo" && m.phase !== "terceiro" && m.winnerId !== c.id
         );
-        bonus = eliminationBonus(deepest.phase, cfg);
+        if (losses.length) {
+          const deepest = losses.reduce((a, b) =>
+            PHASE_DEPTH[b.phase] > PHASE_DEPTH[a.phase] ? b : a
+          );
+          bonus = eliminationBonus(deepest.phase, cfg);
+        }
       }
     }
 

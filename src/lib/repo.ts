@@ -14,7 +14,7 @@ import type {
   StandingRow,
 } from "./types";
 import { shortName, PHASE_LABEL, setsWon } from "./tennis";
-import { computeRanking, type RankMatch, type RankPhase } from "./ranking";
+import { computeRanking, DEFAULT_POINTS, type PlacementBonus, type RankMatch, type RankPhase } from "./ranking";
 import { bracketPositions } from "./bracket-layout";
 import { computeGroupStandings } from "./standings";
 
@@ -215,9 +215,9 @@ export const getTournamentInfo = cache(async () => {
   };
 });
 
-/** Ranking dos atletas por desempenho (pontos = vitórias + participação + bônus de fase). */
+/** Ranking dos atletas por desempenho (pontos = vitórias + participação + bônus de fase/colocação). */
 export async function getRanking(): Promise<RankingEntry[]> {
-  const { competitors, matches } = await getData();
+  const { categories, competitors, matches } = await getData();
 
   const nameById = new Map<string, string>();
   const rankCompetitors = competitors.map((c) => {
@@ -228,7 +228,7 @@ export async function getRanking(): Promise<RankingEntry[]> {
         nameById.set(a.athlete.id, a.athlete.name);
       }
     }
-    return { id: c.id, athleteIds };
+    return { id: c.id, athleteIds, categoryId: c.category_id };
   });
 
   const rankMatches: RankMatch[] = matches.map((m) => {
@@ -249,7 +249,61 @@ export async function getRanking(): Promise<RankingEntry[]> {
     };
   });
 
-  return computeRanking(rankCompetitors, rankMatches).map((r) => ({
+  // Bônus por colocação em categorias só de grupos (sem mata-mata).
+  // 1o = campeão, 2o = vice, 3o/4o = semi.
+  const placements = new Map<string, PlacementBonus>();
+  const groupsOnlyCats = categories.filter((c) => c.format === "grupos");
+  const cfg = DEFAULT_POINTS;
+
+  for (const cat of groupsOnlyCats) {
+    const members = competitors.filter(
+      (c) => c.category_id === cat.id && c.group_id
+    );
+    if (!members.length) continue;
+
+    const groupMatches = matches
+      .filter(
+        (m) =>
+          m.categoryId === cat.id &&
+          m.phase === "grupo" &&
+          (m.status === "finalizado" || m.status === "wo")
+      )
+      .map((m) => ({
+        groupId: m.groupId ?? null,
+        aId: m.a.competitorId ?? null,
+        bId: m.b.competitorId ?? null,
+        sets: m.a.sets.map((s, i) => ({ a: s.games, b: m.b.sets[i].games })),
+        winnerId: m.a.winner
+          ? m.a.competitorId ?? null
+          : m.b.winner
+            ? m.b.competitorId ?? null
+            : null,
+        finished: true,
+      }));
+
+    if (!groupMatches.length) continue;
+
+    const standings = computeGroupStandings(
+      members.map((c) => ({ id: c.id, groupId: c.group_id ?? null })),
+      groupMatches
+    );
+
+    // Junta todos os grupos e ordena pela mesma lógica de classificação
+    const allRows = standings.flatMap((g) => g.rows);
+    // Posição global dentro da categoria (1o, 2o, 3o...)
+    for (let i = 0; i < allRows.length; i++) {
+      const compId = allRows[i].competitorId;
+      if (i === 0) {
+        placements.set(compId, { bonus: cfg.campeao, isTitle: true });
+      } else if (i === 1) {
+        placements.set(compId, { bonus: cfg.vice, isTitle: false });
+      } else if (i <= 3) {
+        placements.set(compId, { bonus: cfg.semi, isTitle: false });
+      }
+    }
+  }
+
+  return computeRanking(rankCompetitors, rankMatches, cfg, placements).map((r) => ({
     ...r,
     name: nameById.get(r.athleteId) ?? "—",
   }));
