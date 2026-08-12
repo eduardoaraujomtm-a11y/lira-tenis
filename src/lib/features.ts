@@ -9,4 +9,4 @@
  * Ligando de novo: a aba volta ao menu, os atalhos em Resultados e Campeões
  * reaparecem e a página /ranking deixa de redirecionar.
  */
-export const SHOW_RANKING = false;
+export const SHOW_RANKING = true;

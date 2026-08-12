@@ -19,7 +19,9 @@ export default async function RankingPage() {
     <div>
       <RealtimeRefresher />
       <h2 className="mb-1 text-xl font-extrabold">Ranking dos atletas 🎾</h2>
-      <p className="mb-4 text-sm text-muted">Pontuação por desempenho no torneio.</p>
+      <div className="mb-4 rounded-lg border border-lira-yellow/40 bg-lira-yellow/10 px-3 py-2 text-xs text-muted">
+        Ranking <span className="font-bold text-foreground">NÃO</span> oficial que segue pontuações somente dos torneios registrados nesse app. Segue os critérios de pontuação abaixo.
+      </div>
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted">
