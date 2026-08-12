@@ -55,7 +55,7 @@ function CompetitorRow({
                 emAndamento
                   ? "bg-lira-yellow text-lira-purple-dark"
                   : wonSets[i]
-                  ? "bg-lira-purple-soft text-foreground"
+                  ? "bg-accent/30 text-foreground font-semibold"
                   : decided || live
                   ? "bg-transparent text-muted"
                   : "bg-lira-purple-soft text-accent"
