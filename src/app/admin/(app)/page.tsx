@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAllMatches } from "@/lib/repo";
+import { getMatchesForTournament, getActiveTournament } from "@/lib/repo";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import type { MatchView } from "@/lib/types";
 
@@ -50,7 +50,8 @@ function Group({ title, matches }: { title: string; matches: MatchView[] }) {
 }
 
 export default async function AdminDashboard() {
-  const all = await getAllMatches();
+  const t = await getActiveTournament();
+  const all = await getMatchesForTournament(t.id);
   const live = all.filter((m) => m.status === "ao_vivo");
   const scheduled = all.filter((m) => m.status === "agendado");
   const done = all.filter((m) => m.status === "finalizado" || m.status === "wo");

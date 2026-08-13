@@ -78,7 +78,7 @@ export function AgendaEditor() {
       supabase.from("competitors").select("id,athletes:competitor_athletes(position,athlete:athletes(name))"),
       supabase
         .from("matches")
-        .select("id,phase,group_id,status,day,time,court_id,competitor_a,competitor_b,label_a,label_b,category:categories(short_name,format)")
+        .select("id,phase,group_id,status,day,time,court_id,competitor_a,competitor_b,label_a,label_b,category:categories(short_name,format,tournament_id)")
         .order("day")
         .order("time"),
       supabase.from("courts").select("id,name").order("name"),
@@ -112,35 +112,37 @@ export function AgendaEditor() {
       id ? nameById.get(id) ?? "?" : label || "A definir";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ms = ((matchRes.data as any[]) ?? []).map((m) => ({
-      id: m.id,
-      categoryShort: m.category?.short_name ?? "",
-      phase: m.phase as Phase,
-      groupId: m.group_id,
-      status: m.status,
-      day: m.day,
-      time: m.time,
-      courtId: m.court_id,
-      aId: m.competitor_a,
-      bId: m.competitor_b,
-      nameA: nameOf(m.competitor_a, m.label_a),
-      nameB: nameOf(m.competitor_b, m.label_b),
-      format: (m.category?.format ?? "grupos_mata_mata") as Format,
-    }));
+    const tour = tourRes.data as any;
+    const activeTid = (tour?.id as string) ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ms = ((matchRes.data as any[]) ?? [])
+      .filter((m) => !activeTid || m.category?.tournament_id === activeTid)
+      .map((m) => ({
+        id: m.id,
+        categoryShort: m.category?.short_name ?? "",
+        phase: m.phase as Phase,
+        groupId: m.group_id,
+        status: m.status,
+        day: m.day,
+        time: m.time,
+        courtId: m.court_id,
+        aId: m.competitor_a,
+        bId: m.competitor_b,
+        nameA: nameOf(m.competitor_a, m.label_a),
+        nameB: nameOf(m.competitor_b, m.label_b),
+        format: (m.category?.format ?? "grupos_mata_mata") as Format,
+      }));
     setRows(ms);
     setCourts((courtRes.data as Court[]) ?? []);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tour = tourRes.data as any;
     setDays((tour?.days as string[]) ?? []);
-    const tid = (tour?.id as string) ?? null;
-    setTournamentId(tid);
+    setTournamentId(activeTid);
     // Slots vêm em query separada: se a migração ainda não foi aplicada, cai
     // silenciosamente no DEFAULT_SLOTS sem quebrar o carregamento dos dias.
-    if (tid) {
+    if (activeTid) {
       const { data: slotsRow, error: slotsErr } = await supabase
         .from("tournaments")
         .select("slots,slots_by_day")
-        .eq("id", tid)
+        .eq("id", activeTid)
         .single();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row = slotsRow as any;
