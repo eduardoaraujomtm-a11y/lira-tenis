@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -13,7 +14,9 @@ export default async function PublicLayout({
       <p className="mx-auto w-full max-w-3xl px-4 pb-2 pt-1 text-right text-[9px] text-muted/50">
         © Eduardo Araújo
       </p>
-      <BottomNav />
+      <Suspense>
+        <BottomNav />
+      </Suspense>
     </div>
   );
 }
