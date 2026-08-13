@@ -3,6 +3,7 @@ import { getAllAthletes } from "@/lib/repo";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import { AtletaSearch } from "./AtletaSearch";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Atletas · Lira Tênis" };
 
 export default async function AtletasPage() {

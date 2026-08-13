@@ -3,6 +3,7 @@ import { getCategoriesForTournament, getBracket, getStandings, resolveTournament
 import { hasGroupsPhase } from "@/lib/rules";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Chaves · Lira Tênis" };
 
 export default async function ChavesPage({

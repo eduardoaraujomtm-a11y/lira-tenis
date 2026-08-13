@@ -3,6 +3,8 @@ import { MatchCard } from "@/components/MatchCard";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import { resolveTournament, getMatchesForTournament } from "@/lib/repo";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home({
   searchParams,
 }: {
@@ -16,6 +18,7 @@ export default async function Home({
   const upcoming = allMatches.filter((m) => m.status === "agendado").slice(0, 4);
   const recent = allMatches
     .filter((m) => m.status === "finalizado" || m.status === "wo")
+    .reverse()
     .slice(0, 3);
 
   return (

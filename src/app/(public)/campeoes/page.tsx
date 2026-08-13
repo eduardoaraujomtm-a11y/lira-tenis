@@ -3,6 +3,7 @@ import { getChampions } from "@/lib/repo";
 import { SHOW_RANKING } from "@/lib/features";
 import type { Champion } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Campeões · Lira Tênis" };
 
 function ChampionCard({ c }: { c: Champion }) {

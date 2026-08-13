@@ -4,6 +4,7 @@ import { getFinishedMatchesForTournament, getCategoriesForTournament, resolveTou
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import { SHOW_RANKING } from "@/lib/features";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Resultados · Lira Tênis" };
 
 export default async function ResultadosPage({

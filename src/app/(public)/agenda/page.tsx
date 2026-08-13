@@ -2,6 +2,7 @@ import { FilterableMatches } from "@/components/FilterableMatches";
 import { resolveTournament, getMatchesForTournament, getCategoriesForTournament } from "@/lib/repo";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Agenda · Lira Tênis" };
 
 export default async function AgendaPage({

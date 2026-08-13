@@ -5,6 +5,7 @@ import { SHOW_RANKING } from "@/lib/features";
 import { DEFAULT_POINTS as P } from "@/lib/ranking";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Ranking · Lira Tênis" };
 
 const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "");
