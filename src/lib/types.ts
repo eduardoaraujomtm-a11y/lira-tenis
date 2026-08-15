@@ -136,6 +136,8 @@ export interface MatchView {
   /** Encadeamento do mata-mata (para desenhar a chave na ordem certa). */
   nextMatchId?: string;
   nextSlot?: "A" | "B";
+  /** Timestamp da última atualização (para ordenar por ordem de finalização). */
+  updatedAt?: string;
 }
 
 export interface Champion {

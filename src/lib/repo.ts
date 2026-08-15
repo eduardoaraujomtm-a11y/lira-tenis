@@ -60,6 +60,7 @@ interface RawMatch {
   next_match_id: string | null;
   next_slot: "A" | "B" | null;
   court: { name: string } | null;
+  updated_at: string | null;
 }
 interface RawCategory {
   id: string;
@@ -101,7 +102,7 @@ export const getData = cache(async () => {
     supabase
       .from("matches")
       .select(
-        "id,category_id,phase,group_id,round,day,time,status,competitor_a,competitor_b,label_a,label_b,sets,live,winner_id,next_match_id,next_slot,court:courts(name)"
+        "id,category_id,phase,group_id,round,day,time,status,competitor_a,competitor_b,label_a,label_b,sets,live,winner_id,next_match_id,next_slot,updated_at,court:courts(name)"
       )
       .order("day")
       .order("time"),
@@ -176,6 +177,7 @@ export const getData = cache(async () => {
         : undefined,
       nextMatchId: m.next_match_id ?? undefined,
       nextSlot: m.next_slot ?? undefined,
+      updatedAt: m.updated_at ?? undefined,
     };
   });
 
@@ -259,11 +261,11 @@ export async function getMatchesForTournament(tournamentId: string): Promise<Mat
   return matches.filter((m) => catIds.has(m.categoryId));
 }
 
-/** Jogos finalizados filtrados por torneio. */
+/** Jogos finalizados filtrados por torneio, mais recentes primeiro. */
 export async function getFinishedMatchesForTournament(tournamentId: string): Promise<MatchView[]> {
-  return (await getMatchesForTournament(tournamentId)).filter(
-    (m) => m.status === "finalizado" || m.status === "wo"
-  );
+  return (await getMatchesForTournament(tournamentId))
+    .filter((m) => m.status === "finalizado" || m.status === "wo")
+    .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
 }
 
 /** Resolve o torneio a partir do searchParam ?torneio=, ou usa o ativo. */
