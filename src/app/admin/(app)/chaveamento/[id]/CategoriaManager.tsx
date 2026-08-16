@@ -24,6 +24,7 @@ import {
   generateGroupMatches,
   generateCustomQuarters,
   generateStructuredKO,
+  groupSlotLabel,
   type GenMatch,
 } from "@/lib/bracket";
 import { DEFAULT_SLOTS, scheduleKnockout, type SlotPlan } from "@/lib/schedule";
@@ -343,18 +344,57 @@ export function CategoriaManager({ categoryId }: { categoryId: string }) {
     if (qualifiers.length < 2) return setError("Classificados insuficientes para o mata-mata.");
     const allDone = standInput.length > 0 && standInput.every((m) => m.finished);
     if (!allDone && !confirm("Nem todos os jogos de grupo terminaram. Gerar o mata-mata com a classificação PARCIAL?")) return;
-    if (!confirm("Isso (re)cria o mata-mata a partir dos classificados. Os jogos de grupo são mantidos. Continuar?")) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await clearMatches(true); // apaga só o mata-mata, mantém os grupos
-      const gen = generateKnockout(qualifiers, { rng: Math.random });
-      await insertGenerated(gen);
-      await load();
-    } catch {
-      setError("Erro ao gerar o mata-mata dos classificados.");
+
+    const koMatches = matches.filter((m) => m.phase !== "grupo");
+    const hasExistingKO = koMatches.length > 0;
+
+    if (hasExistingKO) {
+      // Substituir labels pelos classificados reais, preservando agenda e cruzamentos
+      if (!confirm("Isso substitui as posições previstas pelos classificados reais, mantendo os horários e cruzamentos. Continuar?")) return;
+      setBusy(true);
+      setError(null);
+      try {
+        // Mapear "Xº do Grupo Y" → competitorId
+        const labelToComp = new Map<string, string>();
+        for (const g of standings) {
+          g.rows.forEach((row, rank) => {
+            labelToComp.set(groupSlotLabel(rank + 1, g.groupId), row.competitorId);
+          });
+        }
+        // Atualizar cada jogo de mata-mata da 1ª rodada
+        for (const m of koMatches) {
+          const updates: Record<string, string | null> = {};
+          if (m.label_a && labelToComp.has(m.label_a)) {
+            updates.competitor_a = labelToComp.get(m.label_a)!;
+            updates.label_a = null;
+          }
+          if (m.label_b && labelToComp.has(m.label_b)) {
+            updates.competitor_b = labelToComp.get(m.label_b)!;
+            updates.label_b = null;
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("matches").update(updates).eq("id", m.id);
+          }
+        }
+        await load();
+      } catch {
+        setError("Erro ao substituir pelos classificados.");
+      }
+      setBusy(false);
+    } else {
+      // Sem mata-mata existente: gerar do zero (determinístico, sem sorteio)
+      if (!confirm("Isso cria o mata-mata a partir dos classificados. Os jogos de grupo são mantidos. Continuar?")) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const gen = generateKnockout(qualifiers);
+        await insertGenerated(gen);
+        await load();
+      } catch {
+        setError("Erro ao gerar o mata-mata dos classificados.");
+      }
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   /** Tamanho de cada grupo já formado nesta categoria. */
