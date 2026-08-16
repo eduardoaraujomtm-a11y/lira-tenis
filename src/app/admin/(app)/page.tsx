@@ -54,7 +54,7 @@ export default async function AdminDashboard() {
   const all = await getMatchesForTournament(t.id);
   const live = all.filter((m) => m.status === "ao_vivo");
   const scheduled = all.filter((m) => m.status === "agendado");
-  const done = all.filter((m) => m.status === "finalizado" || m.status === "wo");
+  const done = all.filter((m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia");
 
   return (
     <div>

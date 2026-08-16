@@ -4,7 +4,7 @@ export type Gender = "M" | "F";
 export type CompetitorType = "simples" | "duplas";
 export type Format = "grupos" | "grupos_mata_mata" | "mata_mata";
 
-export type MatchStatus = "agendado" | "ao_vivo" | "finalizado" | "wo";
+export type MatchStatus = "agendado" | "ao_vivo" | "finalizado" | "wo" | "desistencia";
 
 export type Phase =
   | "grupo"

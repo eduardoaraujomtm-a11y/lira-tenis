@@ -15,6 +15,8 @@ function StatusBadge({ status }: { status: MatchView["status"] }) {
     return <span className="text-[11px] font-semibold text-muted">Encerrado</span>;
   if (status === "wo")
     return <span className="text-[11px] font-semibold text-muted">W.O.</span>;
+  if (status === "desistencia")
+    return <span className="text-[11px] font-semibold text-orange-400">Desistência</span>;
   return <span className="text-[11px] font-semibold text-muted">Agendado</span>;
 }
 
@@ -82,7 +84,7 @@ export function MatchCard({
   showDay?: boolean;
 }) {
   const live = match.isLive;
-  const decided = match.status === "finalizado" || match.status === "wo";
+  const decided = match.status === "finalizado" || match.status === "wo" || match.status === "desistencia";
 
   // Comparação set a set: cada lado precisa saber os games do outro.
   const setsA = match.a.sets.map((s, i) => s.games > (match.b.sets[i]?.games ?? 0));

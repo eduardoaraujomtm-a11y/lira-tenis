@@ -334,7 +334,7 @@ export function CategoriaManager({ categoryId }: { categoryId: string }) {
         bId: m.competitor_b,
         sets: (m.sets ?? []).map((s) => ({ a: s.a, b: s.b })),
         winnerId: m.winner_id,
-        finished: m.status === "finalizado" || m.status === "wo",
+        finished: m.status === "finalizado" || m.status === "wo" || m.status === "desistencia",
       }));
     const standings = computeGroupStandings(
       comps.map((c) => ({ id: c.id, groupId: c.group_id })),

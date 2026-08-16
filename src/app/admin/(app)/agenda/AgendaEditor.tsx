@@ -185,7 +185,7 @@ export function AgendaEditor() {
     }
     const capacity = Math.max(1, courts.length);
     const reschedulable = rows.filter(
-      (r) => r.status !== "finalizado" && r.status !== "wo"
+      (r) => r.status !== "finalizado" && r.status !== "wo" && r.status !== "desistencia"
     );
     const skipped = rows.length - reschedulable.length;
     const ok = confirm(

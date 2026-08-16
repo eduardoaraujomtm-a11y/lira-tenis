@@ -264,7 +264,7 @@ export async function getMatchesForTournament(tournamentId: string): Promise<Mat
 /** Jogos finalizados filtrados por torneio, mais recentes primeiro. */
 export async function getFinishedMatchesForTournament(tournamentId: string): Promise<MatchView[]> {
   return (await getMatchesForTournament(tournamentId))
-    .filter((m) => m.status === "finalizado" || m.status === "wo")
+    .filter((m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia")
     .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
 }
 
@@ -295,7 +295,7 @@ export async function getRanking(): Promise<RankingEntry[]> {
   });
 
   const rankMatches: RankMatch[] = matches.map((m) => {
-    const finished = m.status === "finalizado" || m.status === "wo";
+    const finished = m.status === "finalizado" || m.status === "wo" || m.status === "desistencia";
     const winnerId = finished
       ? m.a.winner
         ? m.a.competitorId ?? null
@@ -319,7 +319,7 @@ export async function getRanking(): Promise<RankingEntry[]> {
   for (const cat of categories) {
     const allCatMatches = matches.filter((m) => m.categoryId === cat.id);
     const allFinished = allCatMatches.length > 0 &&
-      allCatMatches.every((m) => m.status === "finalizado" || m.status === "wo");
+      allCatMatches.every((m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia");
     if (!allFinished) continue;
 
     if (cat.format === "grupos") {
@@ -368,7 +368,7 @@ export async function getRanking(): Promise<RankingEntry[]> {
         (m) => m.phase !== "grupo" && m.phase !== "terceiro"
       );
       for (const m of knockout) {
-        const finished = m.status === "finalizado" || m.status === "wo";
+        const finished = m.status === "finalizado" || m.status === "wo" || m.status === "desistencia";
         if (!finished) continue;
         const winnerId = m.a.winner ? m.a.competitorId : m.b.winner ? m.b.competitorId : null;
         const loserId = m.a.winner ? m.b.competitorId : m.b.winner ? m.a.competitorId : null;
@@ -407,11 +407,11 @@ export async function getChampions(): Promise<Champion[]> {
   for (const cat of categories) {
     const catMatches = matches.filter((m) => m.categoryId === cat.id);
     const allFinished = catMatches.length > 0 &&
-      catMatches.every((m) => m.status === "finalizado" || m.status === "wo");
+      catMatches.every((m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia");
 
     // Categorias com final (mata-mata ou grupos+mata-mata)
     const final = catMatches.find(
-      (m) => m.phase === "final" && (m.status === "finalizado" || m.status === "wo")
+      (m) => m.phase === "final" && (m.status === "finalizado" || m.status === "wo" || m.status === "desistencia")
     );
     if (final) {
       const champId = final.a.winner
@@ -486,7 +486,7 @@ export async function getUpcomingMatches(): Promise<MatchView[]> {
 export async function getFinishedMatches(): Promise<MatchView[]> {
   const t = await getActiveTournament();
   return (await getMatchesForTournament(t.id)).filter(
-    (m) => m.status === "finalizado" || m.status === "wo"
+    (m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia"
   );
 }
 
@@ -565,7 +565,7 @@ export async function getAthleteProfile(
   );
 
   const finished = athleteMatches.filter(
-    (m) => m.status === "finalizado" || m.status === "wo"
+    (m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia"
   );
   let wins = 0;
   for (const m of finished) {
@@ -632,7 +632,7 @@ export async function getStandings(categoryId: string): Promise<GroupView[]> {
       (m) =>
         m.categoryId === categoryId &&
         m.phase === "grupo" &&
-        (m.status === "finalizado" || m.status === "wo")
+        (m.status === "finalizado" || m.status === "wo" || m.status === "desistencia")
     )
     .map((m) => ({
       groupId: m.groupId ?? null,

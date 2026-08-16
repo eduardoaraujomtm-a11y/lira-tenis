@@ -19,7 +19,7 @@ interface LoadedMatch {
   phaseLabel: string;
   categoryShort: string;
   courtName?: string;
-  status: "agendado" | "ao_vivo" | "finalizado" | "wo";
+  status: "agendado" | "ao_vivo" | "finalizado" | "wo" | "desistencia";
   sets: MatchScore["sets"];
   live: MatchScore["live"];
   winnerId: string | null;
@@ -77,6 +77,7 @@ export function MesaJogo({ matchId }: { matchId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmWO, setConfirmWO] = useState(false);
+  const [confirmDesist, setConfirmDesist] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<DraftSet[]>([]);
@@ -116,11 +117,11 @@ export function MesaJogo({ matchId }: { matchId: string }) {
         nextSlot: d.next_slot,
       };
       setMatch(loaded);
-      if (d.status === "ao_vivo" || d.status === "finalizado" || d.status === "wo") {
+      if (d.status === "ao_vivo" || d.status === "finalizado" || d.status === "wo" || d.status === "desistencia") {
         setScore({
           sets: loaded.sets,
           live: loaded.live,
-          status: d.status === "ao_vivo" ? "ao_vivo" : "finalizado",
+          status: d.status === "ao_vivo" ? "ao_vivo" : d.status === "desistencia" ? "desistencia" : "finalizado",
           winner:
             d.winner_id === loaded.competitorA
               ? "A"
@@ -158,7 +159,7 @@ export function MesaJogo({ matchId }: { matchId: string }) {
         return;
       }
       // Avança o vencedor na chave
-      if (next.status === "finalizado" && winnerComp && match.nextMatchId && match.nextSlot) {
+      if ((next.status === "finalizado" || next.status === "desistencia") && winnerComp && match.nextMatchId && match.nextSlot) {
         const col = match.nextSlot === "A" ? "competitor_a" : "competitor_b";
         await supabase.from("matches").update({ [col]: winnerComp }).eq("id", match.nextMatchId);
       }
@@ -196,6 +197,12 @@ export function MesaJogo({ matchId }: { matchId: string }) {
     if (!score) return;
     commit(forceWinner(score, side));
     setConfirmWO(false);
+  }
+  function desist(quitter: "A" | "B") {
+    if (!score) return;
+    const winner = quitter === "A" ? "B" : "A";
+    commit({ ...score, status: "desistencia", winner });
+    setConfirmDesist(false);
   }
 
   const compOf = (s: "A" | "B" | undefined) =>
@@ -312,7 +319,7 @@ export function MesaJogo({ matchId }: { matchId: string }) {
   // imediatamente após clicar em "Iniciar jogo" — sem precisar recarregar.
   const started = !!score;
   const m = score ? mode(score.sets, match.rule) : "game";
-  const finished = score?.status === "finalizado";
+  const finished = score?.status === "finalizado" || score?.status === "desistencia";
   const isTb = m === "tiebreak" || m === "super";
 
   return (
@@ -546,10 +553,10 @@ export function MesaJogo({ matchId }: { matchId: string }) {
             </button>
             {!confirmWO ? (
               <button
-                onClick={() => setConfirmWO(true)}
+                onClick={() => { setConfirmWO(true); setConfirmDesist(false); }}
                 className="flex-1 rounded-lg border border-border bg-card py-2 text-sm font-semibold text-muted"
               >
-                Encerrar por W.O.
+                W.O.
               </button>
             ) : (
               <div className="flex flex-[2] gap-2">
@@ -565,6 +572,31 @@ export function MesaJogo({ matchId }: { matchId: string }) {
               </div>
             )}
           </div>
+          {!confirmDesist ? (
+            <button
+              onClick={() => { setConfirmDesist(true); setConfirmWO(false); }}
+              className="w-full rounded-lg border border-border bg-card py-2 text-sm font-semibold text-muted"
+            >
+              Desistência
+            </button>
+          ) : (
+            <div className="rounded-lg border border-orange-500/40 bg-orange-500/10 p-2">
+              <p className="mb-2 text-center text-xs text-orange-400">
+                Quem desistiu? O placar parcial será mantido e o adversário vence.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => desist("A")} className="flex-1 rounded-lg border border-orange-500/40 py-2 text-xs font-bold text-orange-400">
+                  {match.nameA} desistiu
+                </button>
+                <button onClick={() => desist("B")} className="flex-1 rounded-lg border border-orange-500/40 py-2 text-xs font-bold text-orange-400">
+                  {match.nameB} desistiu
+                </button>
+                <button onClick={() => setConfirmDesist(false)} className="rounded-lg border border-border px-2 text-xs">
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
           {!confirmClose ? (
             <button
               onClick={() => setConfirmClose(true)}

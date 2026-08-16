@@ -29,7 +29,7 @@ export default async function AtletaPage({
 
   const { stats } = profile;
   const finished = profile.matches.filter(
-    (m) => m.status === "finalizado" || m.status === "wo"
+    (m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia"
   );
   const upcoming = profile.matches.filter(
     (m) => m.status === "agendado" || m.status === "ao_vivo"

@@ -267,7 +267,7 @@ function CategoryPage({
                 <Text style={[styles.td, styles.colCourt]}>{m.courtName ?? "—"}</Text>
                 <Text style={[styles.td, styles.colStatus]}>
                   {STATUS_LABEL[m.status] ?? m.status}
-                  {(m.status === "finalizado" || m.status === "wo") && m.sets.length
+                  {(m.status === "finalizado" || m.status === "wo" || m.status === "desistencia") && m.sets.length
                     ? ` (${scoreText(m.sets)})`
                     : ""}
                 </Text>
@@ -385,7 +385,7 @@ export function TournamentDocument({
               bId: m.bId,
               sets: m.sets,
               winnerId: m.winnerId,
-              finished: m.status === "finalizado" || m.status === "wo",
+              finished: m.status === "finalizado" || m.status === "wo" || m.status === "desistencia",
             }))
         ).map((g) => ({
           groupId: g.groupId,

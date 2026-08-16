@@ -14,7 +14,7 @@ export interface SetS {
 export interface MatchScore {
   sets: SetS[];
   live: { server: "A" | "B"; a: string; b: string } | null;
-  status: "ao_vivo" | "finalizado";
+  status: "ao_vivo" | "finalizado" | "desistencia";
   winner?: "A" | "B";
 }
 

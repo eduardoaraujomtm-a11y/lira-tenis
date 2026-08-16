@@ -17,7 +17,7 @@ export default async function Home({
   const live = allMatches.filter((m) => m.status === "ao_vivo");
   const upcoming = allMatches.filter((m) => m.status === "agendado").slice(0, 4);
   const recent = allMatches
-    .filter((m) => m.status === "finalizado" || m.status === "wo")
+    .filter((m) => m.status === "finalizado" || m.status === "wo" || m.status === "desistencia")
     .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
     .slice(0, 3);
 

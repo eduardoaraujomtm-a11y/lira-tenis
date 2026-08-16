@@ -43,6 +43,7 @@ export const STATUS_LABEL: Record<Match["status"], string> = {
   ao_vivo: "Ao vivo",
   finalizado: "Finalizado",
   wo: "W.O.",
+  desistencia: "Desistência",
 };
 
 export const PHASE_LABEL: Record<Match["phase"], string> = {
