@@ -14,38 +14,30 @@ interface Tour {
 interface Court {
   id: string;
   name: string;
+  tournament_id: string;
 }
 
 export function TorneioSettings() {
   const [supabase] = useState(() => createClient());
-  const [tour, setTour] = useState<Tour | null>(null);
+  const [tours, setTours] = useState<Tour[]>([]);
   const [courts, setCourts] = useState<Court[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // campos editáveis
-  const [name, setName] = useState("");
-  const [club, setClub] = useState("");
-  const [edition, setEdition] = useState("");
-  const [newDay, setNewDay] = useState("");
-  const [newCourt, setNewCourt] = useState("");
-
   const load = useCallback(async () => {
     const [tourRes, courtRes] = await Promise.all([
-      supabase.from("tournaments").select("id,name,club,edition,days").limit(1).single(),
-      supabase.from("courts").select("id,name").order("name"),
+      supabase.from("tournaments").select("id,name,club,edition,days").order("created_at"),
+      supabase.from("courts").select("id,name,tournament_id").order("name"),
     ]);
-    const t = (tourRes.data as Tour) ?? null;
-    setTour(t);
-    if (t) {
-      setName(t.name);
-      setClub(t.club);
-      setEdition(t.edition ?? "");
-    }
+    const t = (tourRes.data as Tour[]) ?? [];
+    setTours(t);
     setCourts((courtRes.data as Court[]) ?? []);
+    if (!selected && t.length > 0) setSelected(t[0].id);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, selected]);
 
   useEffect(() => {
     load();
@@ -56,71 +48,232 @@ export function TorneioSettings() {
     setTimeout(() => setMsg((s) => (s === m ? null : s)), 1500);
   }
 
-  async function saveInfo() {
-    if (!tour) return;
-    const { error } = await supabase
-      .from("tournaments")
-      .update({ name, club, edition })
-      .eq("id", tour.id);
-    if (error) return setError("Erro ao salvar. Você está logado?");
-    setError(null);
-    flash("Dados salvos!");
-    load();
-  }
-
-  async function saveDays(days: string[]) {
-    if (!tour) return;
-    const sorted = Array.from(new Set(days)).sort();
-    const { error } = await supabase.from("tournaments").update({ days: sorted }).eq("id", tour.id);
-    if (error) return setError("Erro ao salvar os dias: " + error.message);
-    setError(null);
-    setTour({ ...tour, days: sorted });
-    flash("Dias atualizados!");
-  }
-  function addDay() {
-    if (!newDay || !tour) return;
-    saveDays([...(tour.days ?? []), newDay]);
-    setNewDay("");
-  }
-  function removeDay(d: string) {
-    if (!tour) return;
-    saveDays((tour.days ?? []).filter((x) => x !== d));
-  }
-
-  async function addCourt(e: React.FormEvent) {
-    e.preventDefault();
-    const n = newCourt.trim();
-    if (!n || !tour) return;
-    const { error } = await supabase.from("courts").insert({ name: n, tournament_id: tour.id });
-    if (error) return setError("Erro ao adicionar a quadra: " + error.message);
-    setError(null);
-    setNewCourt("");
-    await load();
-    flash("Quadra adicionada!");
-  }
-  async function removeCourt(id: string) {
-    if (!confirm("Remover esta quadra? Os jogos nela ficam sem quadra.")) return;
-    const { error } = await supabase.from("courts").delete().eq("id", id);
-    if (error) return setError("Não foi possível remover: " + error.message);
-    setError(null);
-    await load();
-    flash("Quadra removida.");
-  }
-
   if (loading) return <p className="text-sm text-muted">Carregando…</p>;
-  if (!tour) return <p className="text-sm text-live">Torneio não encontrado.</p>;
 
   return (
     <div className="space-y-5">
       {error && <p className="text-sm text-live">{error}</p>}
       {msg && <p className="text-sm font-semibold text-accent">{msg}</p>}
 
+      {/* Lista de torneios */}
+      <section className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-bold">Torneios cadastrados</h2>
+          <button
+            onClick={() => setCreating(true)}
+            className="rounded-lg bg-lira-purple px-3 py-1.5 text-xs font-bold text-white"
+          >
+            + Novo torneio
+          </button>
+        </div>
+        {tours.length === 0 && (
+          <p className="text-xs text-muted">Nenhum torneio cadastrado.</p>
+        )}
+        <div className="space-y-2">
+          {tours.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => { setSelected(t.id); setCreating(false); }}
+              className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                selected === t.id && !creating
+                  ? "border-lira-purple bg-lira-purple/10"
+                  : "border-border bg-background hover:bg-lira-purple-soft/50"
+              }`}
+            >
+              <p className="text-sm font-bold">{t.name}</p>
+              <p className="text-xs text-muted">
+                {t.club} · {t.edition ?? "—"} · {(t.days ?? []).length} dia(s)
+              </p>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {creating && (
+        <NewTournamentForm
+          supabase={supabase}
+          onCreated={(id) => {
+            setCreating(false);
+            setSelected(id);
+            load();
+            flash("Torneio criado!");
+          }}
+          onCancel={() => setCreating(false)}
+          setError={setError}
+        />
+      )}
+
+      {selected && !creating && (
+        <TournamentEditor
+          key={selected}
+          supabase={supabase}
+          tournamentId={selected}
+          tours={tours}
+          courts={courts.filter((c) => c.tournament_id === selected)}
+          onUpdate={() => { load(); }}
+          flash={flash}
+          setError={setError}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewTournamentForm({
+  supabase,
+  onCreated,
+  onCancel,
+  setError,
+}: {
+  supabase: ReturnType<typeof createClient>;
+  onCreated: (id: string) => void;
+  onCancel: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [name, setName] = useState("");
+  const [club, setClub] = useState("Lira Tênis Clube");
+  const [edition, setEdition] = useState(new Date().getFullYear().toString());
+  const [busy, setBusy] = useState(false);
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return setError("Dê um nome ao torneio.");
+    setBusy(true);
+    setError(null);
+    const { data, error } = await supabase
+      .from("tournaments")
+      .insert({ name: name.trim(), club: club.trim(), edition: edition.trim(), days: [] })
+      .select("id")
+      .single();
+    if (error) {
+      setError("Erro ao criar: " + error.message);
+      setBusy(false);
+      return;
+    }
+    onCreated(data.id);
+  }
+
+  return (
+    <section className="rounded-xl border-2 border-lira-yellow/60 bg-card p-3">
+      <h2 className="mb-2 text-sm font-bold">Novo torneio</h2>
+      <form onSubmit={create} className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Field label="Nome do torneio" value={name} onChange={setName} placeholder="Ex: III Lira Tennis Open" />
+          <Field label="Clube" value={club} onChange={setClub} />
+          <Field label="Edição/Ano" value={edition} onChange={setEdition} />
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-lg bg-lira-purple px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+          >
+            {busy ? "Criando…" : "Criar torneio"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-border px-4 py-2 text-sm"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function TournamentEditor({
+  supabase,
+  tournamentId,
+  tours,
+  courts,
+  onUpdate,
+  flash,
+  setError,
+}: {
+  supabase: ReturnType<typeof createClient>;
+  tournamentId: string;
+  tours: Tour[];
+  courts: Court[];
+  onUpdate: () => void;
+  flash: (m: string) => void;
+  setError: (e: string | null) => void;
+}) {
+  const tour = tours.find((t) => t.id === tournamentId);
+  const [name, setName] = useState(tour?.name ?? "");
+  const [club, setClub] = useState(tour?.club ?? "");
+  const [edition, setEdition] = useState(tour?.edition ?? "");
+  const [newDay, setNewDay] = useState("");
+  const [newCourt, setNewCourt] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  if (!tour) return null;
+
+  async function saveInfo() {
+    const { error } = await supabase
+      .from("tournaments")
+      .update({ name, club, edition })
+      .eq("id", tournamentId);
+    if (error) return setError("Erro ao salvar.");
+    setError(null);
+    flash("Dados salvos!");
+    onUpdate();
+  }
+
+  async function saveDays(days: string[]) {
+    const sorted = Array.from(new Set(days)).sort();
+    const { error } = await supabase.from("tournaments").update({ days: sorted }).eq("id", tournamentId);
+    if (error) return setError("Erro ao salvar os dias: " + error.message);
+    setError(null);
+    onUpdate();
+    flash("Dias atualizados!");
+  }
+  function addDay() {
+    if (!newDay) return;
+    saveDays([...(tour?.days ?? []), newDay]);
+    setNewDay("");
+  }
+  function removeDay(d: string) {
+    saveDays((tour?.days ?? []).filter((x) => x !== d));
+  }
+
+  async function addCourt(e: React.FormEvent) {
+    e.preventDefault();
+    const n = newCourt.trim();
+    if (!n) return;
+    const { error } = await supabase.from("courts").insert({ name: n, tournament_id: tournamentId });
+    if (error) return setError("Erro ao adicionar a quadra: " + error.message);
+    setError(null);
+    setNewCourt("");
+    onUpdate();
+    flash("Quadra adicionada!");
+  }
+  async function removeCourt(id: string) {
+    if (!confirm("Remover esta quadra?")) return;
+    const { error } = await supabase.from("courts").delete().eq("id", id);
+    if (error) return setError("Não foi possível remover: " + error.message);
+    setError(null);
+    onUpdate();
+    flash("Quadra removida.");
+  }
+
+  async function deleteTournament() {
+    const { error } = await supabase.from("tournaments").delete().eq("id", tournamentId);
+    if (error) return setError("Erro ao excluir: " + error.message);
+    setError(null);
+    flash("Torneio excluído.");
+    onUpdate();
+  }
+
+  return (
+    <>
       {/* Dados gerais */}
       <section className="rounded-xl border border-border bg-card p-3">
         <h2 className="mb-2 text-sm font-bold">Dados do torneio</h2>
         <div className="grid gap-2 sm:grid-cols-3">
-          <Field label="Clube" value={club} onChange={setClub} />
           <Field label="Nome do torneio" value={name} onChange={setName} />
+          <Field label="Clube" value={club} onChange={setClub} />
           <Field label="Edição/Ano" value={edition} onChange={setEdition} />
         </div>
         <button
@@ -172,12 +325,9 @@ export function TorneioSettings() {
 
       {/* Quadras */}
       <section className="rounded-xl border border-border bg-card p-3">
-        <h2 className="mb-1 text-sm font-bold">Quadras do clube</h2>
-        <p className="mb-2 text-xs text-muted">
-          Quantas quadras você tem disponíveis. São usadas para alocar e agendar os jogos.
-        </p>
+        <h2 className="mb-1 text-sm font-bold">Quadras</h2>
         <div className="mb-3 flex flex-wrap gap-2">
-          {courts.length === 0 && <span className="text-xs text-muted">Nenhuma quadra ainda.</span>}
+          {courts.length === 0 && <span className="text-xs text-muted">Nenhuma quadra.</span>}
           {courts.map((c) => (
             <span
               key={c.id}
@@ -201,9 +351,39 @@ export function TorneioSettings() {
             Adicionar
           </button>
         </form>
-        <p className="mt-2 text-xs text-muted">{courts.length} quadra(s) cadastrada(s).</p>
       </section>
-    </div>
+
+      {/* Excluir */}
+      <section className="rounded-xl border border-live/30 bg-card p-3">
+        <h2 className="mb-1 text-sm font-bold text-live">Zona de perigo</h2>
+        <p className="mb-2 text-xs text-muted">
+          Excluir o torneio apaga todas as categorias, jogos e resultados dele.
+        </p>
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="rounded-lg border border-live/40 px-3 py-1.5 text-xs font-bold text-live"
+          >
+            Excluir torneio
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={deleteTournament}
+              className="rounded-lg bg-live px-3 py-1.5 text-xs font-bold text-white"
+            >
+              Confirmar exclusão
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -211,10 +391,12 @@ function Field({
   label,
   value,
   onChange,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  placeholder?: string;
 }) {
   return (
     <div>
@@ -222,6 +404,7 @@ function Field({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
         className="w-full rounded-lg border border-border bg-background px-2 py-2 text-sm"
       />
     </div>
