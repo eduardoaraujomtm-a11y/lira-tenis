@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/LogoutButton";
 import { AdminNav } from "@/components/AdminNav";
+import { AdminTournamentSwitcher } from "@/components/AdminTournamentSwitcher";
+import { getAllTournaments, getAdminTournament } from "@/lib/repo";
 
 export const metadata = { title: "Painel · Lira Tênis" };
 
@@ -18,6 +20,10 @@ export default async function AdminLayout({
   if (!user) redirect("/admin/login");
   const role = (user.app_metadata?.role as string) ?? "organizador";
   const isMesario = role === "mesario";
+  const [tournaments, current] = await Promise.all([
+    getAllTournaments(),
+    getAdminTournament(),
+  ]);
 
   return (
     <div className="flex min-h-full flex-col">
@@ -39,6 +45,9 @@ export default async function AdminLayout({
           </div>
         </div>
         <AdminNav isMesario={isMesario} />
+        {tournaments.length > 1 && (
+          <AdminTournamentSwitcher tournaments={tournaments} current={current.id} />
+        )}
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4">{children}</main>
       <p className="mx-auto w-full max-w-3xl px-4 pb-3 pt-2 text-right text-[9px] text-muted/50">

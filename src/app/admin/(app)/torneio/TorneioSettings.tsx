@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDay } from "@/lib/tennis";
+import { readAdminTidCookie, writeAdminTidCookie } from "@/lib/adminTournament";
 
 interface Tour {
   id: string;
@@ -35,7 +36,10 @@ export function TorneioSettings() {
     const t = (tourRes.data as Tour[]) ?? [];
     setTours(t);
     setCourts((courtRes.data as Court[]) ?? []);
-    if (!selected && t.length > 0) setSelected(t[0].id);
+    if (!selected && t.length > 0) {
+      const cookieTid = readAdminTidCookie();
+      setSelected(cookieTid && t.some((x) => x.id === cookieTid) ? cookieTid : t[0].id);
+    }
     setLoading(false);
   }, [supabase, selected]);
 
@@ -73,7 +77,7 @@ export function TorneioSettings() {
           {tours.map((t) => (
             <button
               key={t.id}
-              onClick={() => { setSelected(t.id); setCreating(false); }}
+              onClick={() => { setSelected(t.id); writeAdminTidCookie(t.id); setCreating(false); }}
               className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
                 selected === t.id && !creating
                   ? "border-lira-purple bg-lira-purple/10"
@@ -95,8 +99,9 @@ export function TorneioSettings() {
           onCreated={(id) => {
             setCreating(false);
             setSelected(id);
+            writeAdminTidCookie(id);
             load();
-            flash("Torneio criado!");
+            flash("Torneio criado! Agora ele é o torneio em edição no painel.");
           }}
           onCancel={() => setCreating(false)}
           setError={setError}

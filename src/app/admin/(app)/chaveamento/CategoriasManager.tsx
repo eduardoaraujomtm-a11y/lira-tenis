@@ -7,6 +7,7 @@ import type { CompetitorType, Format } from "@/lib/types";
 import { FORMAT_OPTIONS, TYPE_OPTIONS, RULE_PRESETS, formatShort } from "@/lib/rules";
 import { downloadTournamentPdf } from "@/lib/pdf/TournamentPdf";
 import { shortName as shortenName } from "@/lib/tennis";
+import { readAdminTidCookie } from "@/lib/adminTournament";
 
 interface Cat {
   id: string;
@@ -37,16 +38,21 @@ export function CategoriasManager() {
   const [presetId, setPresetId] = useState("best3");
 
   const load = useCallback(async () => {
-    const [catRes, tourRes] = await Promise.all([
-      supabase
-        .from("categories")
-        .select("id,name,short_name,type,format,sort_order,qualifiers_per_group")
-        .order("sort_order"),
-      supabase.from("tournaments").select("id").limit(1).single(),
-    ]);
+    const cookieTid = readAdminTidCookie();
+    const { data: tours } = await supabase
+      .from("tournaments")
+      .select("id")
+      .order("created_at", { ascending: false });
+    const ids = ((tours as { id: string }[]) ?? []).map((t) => t.id);
+    const tid = (cookieTid && ids.includes(cookieTid) ? cookieTid : ids[0]) ?? null;
+    setTournamentId(tid);
+
+    const catRes = await supabase
+      .from("categories")
+      .select("id,name,short_name,type,format,sort_order,qualifiers_per_group")
+      .eq("tournament_id", tid ?? "")
+      .order("sort_order");
     setCats((catRes.data as Cat[]) ?? []);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setTournamentId(((tourRes.data as any)?.id as string) ?? null);
     setLoading(false);
   }, [supabase]);
 
@@ -112,8 +118,9 @@ export function CategoriasManager() {
     setGeneratingPdf(true);
     setError(null);
     try {
+      const catIds = new Set(cats.map((c) => c.id));
       const [tourRes, compRes, matchRes] = await Promise.all([
-        supabase.from("tournaments").select("name,edition").limit(1).single(),
+        supabase.from("tournaments").select("name,edition").eq("id", tournamentId ?? "").single(),
         supabase
           .from("competitors")
           .select("id,category_id,group_id,athletes:competitor_athletes(position,athlete:athletes(name))"),
@@ -125,7 +132,7 @@ export function CategoriasManager() {
       ]);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawComps = (compRes.data as any[]) ?? [];
+      const rawComps = ((compRes.data as any[]) ?? []).filter((c) => catIds.has(c.category_id));
       const competitors = rawComps.map((c) => ({
         id: c.id as string,
         categoryId: c.category_id as string,
@@ -145,7 +152,7 @@ export function CategoriasManager() {
         id ? nameById.get(id) ?? "?" : label || "A definir";
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawMatches = (matchRes.data as any[]) ?? [];
+      const rawMatches = ((matchRes.data as any[]) ?? []).filter((m) => catIds.has(m.category_id));
       const matches = rawMatches.map((m) => ({
         id: m.id as string,
         categoryId: m.category_id as string,

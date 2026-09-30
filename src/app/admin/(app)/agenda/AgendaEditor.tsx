@@ -6,6 +6,7 @@ import { shortName, formatDay, PHASE_LABEL } from "@/lib/tennis";
 import type { Phase } from "@/lib/types";
 import { autoSchedule, DEFAULT_SLOTS, slotsOn, type SlotPlan } from "@/lib/schedule";
 import type { Format } from "@/lib/types";
+import { readAdminTidCookie } from "@/lib/adminTournament";
 
 interface Row {
   id: string;
@@ -81,10 +82,16 @@ export function AgendaEditor() {
         .select("id,phase,group_id,status,day,time,court_id,competitor_a,competitor_b,label_a,label_b,category:categories(short_name,format,tournament_id)")
         .order("day")
         .order("time"),
-      supabase.from("courts").select("id,name").order("name"),
-      supabase.from("tournaments").select("id,days").limit(1).single(),
+      supabase.from("courts").select("id,name,tournament_id").order("name"),
+      supabase.from("tournaments").select("id,days").order("created_at", { ascending: false }),
       supabase.from("categories").select("short_name,sort_order").order("sort_order"),
     ]);
+    const cookieTid = readAdminTidCookie();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tourList = ((tourRes.data as any[]) ?? []);
+    const activeTid =
+      (cookieTid && tourList.some((t) => t.id === cookieTid) ? cookieTid : tourList[0]?.id) ?? null;
+    const tour = tourList.find((t) => t.id === activeTid) ?? null;
     setCatOrder(
       new Map(
         ((catRes.data as { short_name: string; sort_order: number }[]) ?? []).map(
@@ -112,9 +119,6 @@ export function AgendaEditor() {
       id ? nameById.get(id) ?? "?" : label || "A definir";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tour = tourRes.data as any;
-    const activeTid = (tour?.id as string) ?? null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ms = ((matchRes.data as any[]) ?? [])
       .filter((m) => !activeTid || m.category?.tournament_id === activeTid)
       .map((m) => ({
@@ -133,7 +137,11 @@ export function AgendaEditor() {
         format: (m.category?.format ?? "grupos_mata_mata") as Format,
       }));
     setRows(ms);
-    setCourts((courtRes.data as Court[]) ?? []);
+    setCourts(
+      ((courtRes.data as (Court & { tournament_id: string })[]) ?? []).filter(
+        (c) => !activeTid || c.tournament_id === activeTid
+      )
+    );
     setDays((tour?.days as string[]) ?? []);
     setTournamentId(activeTid);
     // Slots vêm em query separada: se a migração ainda não foi aplicada, cai

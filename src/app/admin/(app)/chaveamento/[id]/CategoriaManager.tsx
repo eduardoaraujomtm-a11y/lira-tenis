@@ -98,7 +98,7 @@ export function CategoriaManager({ categoryId }: { categoryId: string }) {
     const [catRes, athRes, compRes, courtRes, tourRes, matchRes] = await Promise.all([
       supabase
         .from("categories")
-        .select("id,name,short_name,type,format,rule,qualifiers_per_group")
+        .select("id,name,short_name,type,format,rule,qualifiers_per_group,tournament_id")
         .eq("id", categoryId)
         .single(),
       supabase.from("athletes").select("id,name").order("name"),
@@ -106,19 +106,25 @@ export function CategoriaManager({ categoryId }: { categoryId: string }) {
         .from("competitors")
         .select("id,seed,group_id,athletes:competitor_athletes(position,athlete:athletes(id,name))")
         .eq("category_id", categoryId),
-      supabase.from("courts").select("id"),
-      supabase.from("tournaments").select("days,slots,slots_by_day").limit(1).single(),
+      supabase.from("courts").select("id,tournament_id"),
+      supabase.from("tournaments").select("id,days,slots,slots_by_day"),
       supabase
         .from("matches")
         .select("id,phase,group_id,round,time,status,sets,winner_id,competitor_a,competitor_b,label_a,label_b,next_match_id,next_slot")
         .eq("category_id", categoryId),
     ]);
-    setCat((catRes.data as Category) ?? null);
+    const category = (catRes.data as Category & { tournament_id: string }) ?? null;
+    const catTid = category?.tournament_id ?? null;
+    setCat(category);
     setAthletes((athRes.data as Athlete[]) ?? []);
     setComps((compRes.data as unknown as Competitor[]) ?? []);
-    setCourts((courtRes.data as { id: string }[]) ?? []);
+    setCourts(
+      ((courtRes.data as { id: string; tournament_id: string }[]) ?? []).filter(
+        (c) => !catTid || c.tournament_id === catTid
+      )
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tour = tourRes.data as any;
+    const tour = ((tourRes.data as any[]) ?? []).find((t) => t.id === catTid) ?? null;
     setDays((tour?.days as string[]) ?? []);
     setSlots({
       fallback: (tour?.slots as string[])?.length ? (tour.slots as string[]) : DEFAULT_SLOTS,

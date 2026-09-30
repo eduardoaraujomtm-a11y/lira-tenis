@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient } from "./supabase/server";
+import { ADMIN_TID_COOKIE } from "./adminTournament";
 import type {
   CategoryView,
   Champion,
@@ -241,6 +242,19 @@ export const getActiveTournament = cache(async (): Promise<TournamentInfo> => {
     if (hasActive) return t;
   }
   return tournaments[0];
+});
+
+/** Torneio que o organizador está editando (cookie do admin), com fallback
+ *  para o mais recente. Usado pelas páginas de servidor do painel. */
+export const getAdminTournament = cache(async (): Promise<TournamentInfo> => {
+  const { cookies } = await import("next/headers");
+  const tid = (await cookies()).get(ADMIN_TID_COOKIE)?.value;
+  const all = await getAllTournaments();
+  if (tid) {
+    const found = all.find((t) => t.id === tid);
+    if (found) return found;
+  }
+  return all[0] ?? { id: "", name: "", edition: "" };
 });
 
 /** Dados básicos do torneio (nome + edição), para o cabeçalho. */
