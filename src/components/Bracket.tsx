@@ -7,10 +7,10 @@ type BracketGroup = {
   slots: (MatchView | null)[];
 };
 
-// Altura de cada vaga da rodada de entrada. Precisa ser maior que a altura de
-// um confronto (~57px) para sobrar respiro entre jogos vizinhos; as rodadas
-// seguintes dobram essa banda, então o espaçamento cresce junto.
-const UNIT = 82;
+// Geometria da chave (px).
+const UNIT = 78; // altura de uma vaga da rodada de entrada; as seguintes dobram
+const COL_W = 176; // largura da coluna de uma rodada
+const GUTTER = 48; // espaço entre rodadas, onde correm as linhas de ligação
 
 function BracketSlot({ side, live }: { side: SideView; live: boolean }) {
   const score = side.sets.map((s) => `${s.games}`).join(" ");
@@ -49,34 +49,88 @@ export function Bracket({ groups }: { groups: BracketGroup[] }) {
       </p>
     );
   }
+
   const maxCap = Math.max(...groups.map((g) => g.capacity));
   const bodyHeight = maxCap * UNIT;
+  const totalWidth = groups.length * COL_W + (groups.length - 1) * GUTTER;
+
+  // Posição (coluna + centro vertical) de cada confronto, para ligar as linhas.
+  const posById = new Map<string, { ci: number; cy: number }>();
+  groups.forEach((g, ci) => {
+    const bandH = bodyHeight / g.capacity;
+    g.slots.forEach((m, i) => {
+      if (m) posById.set(m.id, { ci, cy: (i + 0.5) * bandH });
+    });
+  });
+
+  // Uma ligação por confronto que avança: cotovelo do jogo até o pai.
+  const links: { d: string }[] = [];
+  groups.forEach((g, ci) => {
+    const bandH = bodyHeight / g.capacity;
+    g.slots.forEach((m, i) => {
+      if (!m || !m.nextMatchId) return;
+      const parent = posById.get(m.nextMatchId);
+      if (!parent) return;
+      const cy = (i + 0.5) * bandH;
+      const childX = ci * (COL_W + GUTTER) + COL_W;
+      const parentX = parent.ci * (COL_W + GUTTER);
+      const midX = (childX + parentX) / 2;
+      links.push({ d: `M${childX},${cy} H${midX} V${parent.cy} H${parentX}` });
+    });
+  });
 
   return (
     <div className="overflow-x-auto pb-2">
-      <div className="flex min-w-max gap-4">
-        {groups.map((g) => (
-          <div key={g.phase} className="flex w-44 flex-col gap-2">
-            <h4 className="text-center text-[11px] font-bold uppercase tracking-wide text-accent">
+      <div style={{ width: totalWidth }}>
+        {/* Cabeçalhos das rodadas */}
+        <div className="mb-2 flex" style={{ gap: GUTTER }}>
+          {groups.map((g) => (
+            <h4
+              key={g.phase}
+              style={{ width: COL_W }}
+              className="text-center text-[11px] font-bold uppercase tracking-wide text-accent"
+            >
               {g.phaseLabel}
             </h4>
-            {/* Cada vaga é uma banda de altura igual: a rodada de entrada tem
-                `maxCap` bandas (UNIT cada) e as seguintes, menos bandas, ficam
-                proporcionalmente mais altas — então cada confronto fica centrado
-                entre os dois que o alimentam. */}
-            <div className="flex flex-col" style={{ height: bodyHeight }}>
-              {g.slots.map((m, i) => (
-                <div key={m?.id ?? `empty-${i}`} className="flex flex-1 items-center">
-                  {m && (
-                    <div className="w-full">
-                      <BracketMatch match={m} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          ))}
+        </div>
+
+        {/* Corpo: SVG das ligações atrás + colunas de confrontos à frente */}
+        <div className="relative" style={{ width: totalWidth, height: bodyHeight }}>
+          <svg
+            className="absolute inset-0 text-border"
+            width={totalWidth}
+            height={bodyHeight}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            aria-hidden
+          >
+            {links.map((l, i) => (
+              <path key={i} d={l.d} />
+            ))}
+          </svg>
+
+          <div className="relative flex" style={{ gap: GUTTER }}>
+            {groups.map((g) => (
+              <div
+                key={g.phase}
+                className="flex flex-col"
+                style={{ width: COL_W, height: bodyHeight }}
+              >
+                {g.slots.map((m, i) => (
+                  <div key={m?.id ?? `empty-${i}`} className="flex flex-1 items-center">
+                    {m && (
+                      <div className="w-full">
+                        <BracketMatch match={m} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
