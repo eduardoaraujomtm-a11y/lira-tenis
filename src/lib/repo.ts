@@ -16,7 +16,7 @@ import type {
 } from "./types";
 import { shortName, PHASE_LABEL, setsWon } from "./tennis";
 import { computeRanking, DEFAULT_POINTS, type PlacementBonus, type RankMatch, type RankPhase } from "./ranking";
-import { bracketPositions } from "./bracket-layout";
+import { bracketSlots } from "./bracket-layout";
 import { computeGroupStandings } from "./standings";
 
 export interface RankingEntry {
@@ -514,22 +514,21 @@ export async function getAgendaMatches(): Promise<MatchView[]> {
   );
 }
 
-/** Chave do mata-mata de uma categoria, agrupada por fase (ordenada como árvore). */
+/**
+ * Chave do mata-mata de uma categoria, por fase. Cada fase vem com sua
+ * `capacity` (vagas da rodada cheia) e `slots`: um array desse tamanho onde
+ * cada confronto ocupa a posição derivada da árvore. As vagas que viraram bye
+ * ficam `null`, e é isso que mantém cada jogo alinhado ao seu confronto de
+ * destino mesmo quando a rodada não está cheia.
+ */
 export async function getBracket(categoryId: string) {
-  const order: Phase[] = ["preliminar", "oitavas", "quartas", "semi", "final", "terceiro"];
   const knockout = (await getData()).matches.filter(
     (m) => m.categoryId === categoryId && m.phase !== "grupo"
   );
-  const pos = bracketPositions(knockout);
-  return order
-    .map((phase) => ({
-      phase,
-      phaseLabel: PHASE_LABEL[phase],
-      matches: knockout
-        .filter((m) => m.phase === phase)
-        .sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0)),
-    }))
-    .filter((g) => g.matches.length > 0);
+  return bracketSlots(knockout).map((g) => ({
+    ...g,
+    phaseLabel: PHASE_LABEL[g.phase as Phase],
+  }));
 }
 
 /** Perfil de um atleta: estatísticas + histórico de jogos. */

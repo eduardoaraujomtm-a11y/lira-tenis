@@ -17,7 +17,7 @@ import {
   hasKnockoutPhase,
 } from "@/lib/rules";
 import { computeGroupStandings, qualifiersSeeded } from "@/lib/standings";
-import { bracketPositions } from "@/lib/bracket-layout";
+import { bracketSlots } from "@/lib/bracket-layout";
 import {
   generateKnockout,
   distributeGroups,
@@ -180,18 +180,11 @@ export function CategoriaManager({ categoryId }: { categoryId: string }) {
       };
     };
 
-    const order: Phase[] = ["preliminar", "oitavas", "quartas", "semi", "final", "terceiro"];
     const knockoutViews = matches.filter((m) => m.phase !== "grupo").map(toView);
-    const koPos = bracketPositions(knockoutViews);
-    const bracketGroups = order
-      .map((phase) => ({
-        phase,
-        phaseLabel: PHASE_LABEL[phase],
-        matches: knockoutViews
-          .filter((m) => m.phase === phase)
-          .sort((a, b) => (koPos.get(a.id) ?? 0) - (koPos.get(b.id) ?? 0)),
-      }))
-      .filter((g) => g.matches.length > 0);
+    const bracketGroups = bracketSlots(knockoutViews).map((g) => ({
+      ...g,
+      phaseLabel: PHASE_LABEL[g.phase as Phase],
+    }));
 
     const groupMatches = matches.filter((m) => m.phase === "grupo");
     const gids = Array.from(new Set(groupMatches.map((m) => m.group_id))).sort();

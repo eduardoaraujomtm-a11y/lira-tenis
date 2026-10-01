@@ -9,7 +9,12 @@ import { formatShort, hasGroupsPhase, hasKnockoutPhase } from "@/lib/rules";
 export interface CategoryBracket {
   category: CategoryView;
   groups: GroupView[];
-  bracket: { phase: string; phaseLabel: string; matches: MatchView[] }[];
+  bracket: {
+    phase: string;
+    phaseLabel: string;
+    capacity: number;
+    slots: (MatchView | null)[];
+  }[];
 }
 
 export function ChavesView({ data }: { data: CategoryBracket[] }) {

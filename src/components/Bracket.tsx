@@ -1,6 +1,14 @@
 import type { MatchView, SideView } from "@/lib/types";
 
-type BracketGroup = { phase: string; phaseLabel: string; matches: MatchView[] };
+type BracketGroup = {
+  phase: string;
+  phaseLabel: string;
+  capacity: number;
+  slots: (MatchView | null)[];
+};
+
+// Altura base de uma vaga da rodada de entrada; as rodadas seguintes dobram.
+const UNIT = 60;
 
 function BracketSlot({ side, live }: { side: SideView; live: boolean }) {
   const score = side.sets.map((s) => `${s.games}`).join(" ");
@@ -39,17 +47,30 @@ export function Bracket({ groups }: { groups: BracketGroup[] }) {
       </p>
     );
   }
+  const maxCap = Math.max(...groups.map((g) => g.capacity));
+  const bodyHeight = maxCap * UNIT;
+
   return (
     <div className="overflow-x-auto pb-2">
       <div className="flex min-w-max gap-4">
         {groups.map((g) => (
-          <div key={g.phase} className="flex w-44 flex-col justify-around gap-4">
+          <div key={g.phase} className="flex w-44 flex-col gap-2">
             <h4 className="text-center text-[11px] font-bold uppercase tracking-wide text-accent">
               {g.phaseLabel}
             </h4>
-            <div className="flex flex-1 flex-col justify-around gap-4">
-              {g.matches.map((m) => (
-                <BracketMatch key={m.id} match={m} />
+            {/* Cada vaga é uma banda de altura igual: a rodada de entrada tem
+                `maxCap` bandas (UNIT cada) e as seguintes, menos bandas, ficam
+                proporcionalmente mais altas — então cada confronto fica centrado
+                entre os dois que o alimentam. */}
+            <div className="flex flex-col" style={{ height: bodyHeight }}>
+              {g.slots.map((m, i) => (
+                <div key={m?.id ?? `empty-${i}`} className="flex flex-1 items-center">
+                  {m && (
+                    <div className="w-full">
+                      <BracketMatch match={m} />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
