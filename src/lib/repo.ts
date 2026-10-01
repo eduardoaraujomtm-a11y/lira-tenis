@@ -226,20 +226,22 @@ export const getAllTournaments = cache(async (): Promise<TournamentInfo[]> => {
   }));
 });
 
-/** Torneio ativo = o que tem jogos agendados ou ao vivo (ou o mais recente). */
+/**
+ * Torneio atual (o que o site mostra por padrão a qualquer visitante): o mais
+ * recente que já tenha jogos. Assim o padrão é determinístico — não depende de
+ * haver jogos "agendado/ao vivo" — e um torneio recém-criado e ainda vazio não
+ * rouba a vez do que está em andamento. Sem torneios com jogos, cai no mais
+ * recente de todos.
+ */
 export const getActiveTournament = cache(async (): Promise<TournamentInfo> => {
-  const tournaments = await getAllTournaments();
+  const tournaments = await getAllTournaments(); // mais recente primeiro
   if (tournaments.length <= 1) return tournaments[0] ?? { id: "", name: "", edition: "" };
 
   const { matches, categories } = await getData();
-  const catTournament = new Map(categories.map((c) => [c.id, c.tournamentId]));
-
   for (const t of tournaments) {
     const tCats = new Set(categories.filter((c) => c.tournamentId === t.id).map((c) => c.id));
-    const hasActive = matches.some(
-      (m) => tCats.has(m.categoryId) && (m.status === "agendado" || m.status === "ao_vivo")
-    );
-    if (hasActive) return t;
+    const hasMatches = matches.some((m) => tCats.has(m.categoryId));
+    if (hasMatches) return t;
   }
   return tournaments[0];
 });
