@@ -8,6 +8,7 @@ export type MatchStatus = "agendado" | "ao_vivo" | "finalizado" | "wo" | "desist
 
 export type Phase =
   | "grupo"
+  | "preliminar"
   | "oitavas"
   | "quartas"
   | "semi"

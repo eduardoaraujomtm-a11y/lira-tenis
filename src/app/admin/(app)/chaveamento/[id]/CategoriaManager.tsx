@@ -180,7 +180,7 @@ export function CategoriaManager({ categoryId }: { categoryId: string }) {
       };
     };
 
-    const order: Phase[] = ["oitavas", "quartas", "semi", "final", "terceiro"];
+    const order: Phase[] = ["preliminar", "oitavas", "quartas", "semi", "final", "terceiro"];
     const knockoutViews = matches.filter((m) => m.phase !== "grupo").map(toView);
     const koPos = bracketPositions(knockoutViews);
     const bracketGroups = order

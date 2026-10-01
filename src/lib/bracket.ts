@@ -46,6 +46,7 @@ function seedOrder(size: number): number[] {
 }
 
 function phaseForCount(matchCount: number): Phase {
+  if (matchCount >= 16) return "preliminar";
   if (matchCount >= 8) return "oitavas";
   if (matchCount === 4) return "quartas";
   if (matchCount === 2) return "semi";
@@ -80,7 +81,7 @@ export function generateKnockout(
   const rng = opts?.rng;
   const n = competitors.length;
   if (n < 2) return [];
-  const size = Math.min(nextPow2(n), 16);
+  const size = Math.min(nextPow2(n), 32);
 
   // Ordena as cabeças por seed; os demais ficam à parte.
   const seeded = competitors

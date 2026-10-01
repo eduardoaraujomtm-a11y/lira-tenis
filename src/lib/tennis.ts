@@ -48,6 +48,7 @@ export const STATUS_LABEL: Record<Match["status"], string> = {
 
 export const PHASE_LABEL: Record<Match["phase"], string> = {
   grupo: "Fase de grupos",
+  preliminar: "1ª Rodada",
   oitavas: "Oitavas",
   quartas: "Quartas de final",
   semi: "Semifinal",

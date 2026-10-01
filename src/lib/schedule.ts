@@ -65,6 +65,7 @@ export function playableDays(plan: SlotPlan, days: string[]): string[] {
 /** Rodadas de mata-mata, da primeira à última. Final e disputa de 3º dividem o
  *  mesmo dia — são os jogos de encerramento. */
 const KNOCKOUT_ROUNDS: Phase[][] = [
+  ["preliminar"],
   ["oitavas"],
   ["quartas"],
   ["semi"],

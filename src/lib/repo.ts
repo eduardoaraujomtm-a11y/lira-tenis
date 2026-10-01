@@ -514,7 +514,7 @@ export async function getAgendaMatches(): Promise<MatchView[]> {
 
 /** Chave do mata-mata de uma categoria, agrupada por fase (ordenada como árvore). */
 export async function getBracket(categoryId: string) {
-  const order: Phase[] = ["oitavas", "quartas", "semi", "final", "terceiro"];
+  const order: Phase[] = ["preliminar", "oitavas", "quartas", "semi", "final", "terceiro"];
   const knockout = (await getData()).matches.filter(
     (m) => m.categoryId === categoryId && m.phase !== "grupo"
   );
