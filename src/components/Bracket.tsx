@@ -7,8 +7,10 @@ type BracketGroup = {
   slots: (MatchView | null)[];
 };
 
-// Altura base de uma vaga da rodada de entrada; as rodadas seguintes dobram.
-const UNIT = 60;
+// Altura de cada vaga da rodada de entrada. Precisa ser maior que a altura de
+// um confronto (~57px) para sobrar respiro entre jogos vizinhos; as rodadas
+// seguintes dobram essa banda, então o espaçamento cresce junto.
+const UNIT = 82;
 
 function BracketSlot({ side, live }: { side: SideView; live: boolean }) {
   const score = side.sets.map((s) => `${s.games}`).join(" ");
