@@ -97,11 +97,11 @@ export function TorneioSettings() {
         <NewTournamentForm
           supabase={supabase}
           onCreated={(id) => {
-            setCreating(false);
-            setSelected(id);
             writeAdminTidCookie(id);
-            load();
-            flash("Torneio criado! Agora ele é o torneio em edição no painel.");
+            // Reload completo: o seletor de torneio no topo é montado pelo layout
+            // do servidor e só atualiza a lista num carregamento de página. Sem
+            // isso, o torneio recém-criado não aparece lá até um refresh manual.
+            window.location.reload();
           }}
           onCancel={() => setCreating(false)}
           setError={setError}
@@ -266,9 +266,8 @@ function TournamentEditor({
   async function deleteTournament() {
     const { error } = await supabase.from("tournaments").delete().eq("id", tournamentId);
     if (error) return setError("Erro ao excluir: " + error.message);
-    setError(null);
-    flash("Torneio excluído.");
-    onUpdate();
+    // Reload completo p/ o seletor do topo (montado pelo layout) sair da lista.
+    window.location.reload();
   }
 
   return (
