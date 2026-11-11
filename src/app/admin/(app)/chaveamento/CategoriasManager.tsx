@@ -29,6 +29,8 @@ export function CategoriasManager() {
   const [open, setOpen] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [reordering, setReordering] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // form
   const [name, setName] = useState("");
@@ -112,6 +114,17 @@ export function CategoriasManager() {
       setError("Não foi possível salvar a nova ordem.");
       await load(); // volta ao que está gravado, para a tela não mentir
     }
+  }
+
+  async function del(id: string) {
+    setDeleting(true);
+    setError(null);
+    // Jogos e competidores da categoria caem junto (cascade no banco).
+    const { error } = await supabase.from("categories").delete().eq("id", id);
+    setDeleting(false);
+    setConfirmId(null);
+    if (error) return setError("Não foi possível apagar a categoria: " + error.message);
+    await load();
   }
 
   async function generatePdf() {
@@ -342,6 +355,32 @@ export function CategoriasManager() {
                   </div>
                   <span className="shrink-0 text-accent">→</span>
                 </Link>
+                {confirmId === c.id ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => del(c.id)}
+                      disabled={deleting}
+                      className="rounded-lg bg-live px-2 py-1 text-[11px] font-bold text-white disabled:opacity-60"
+                    >
+                      {deleting ? "Apagando…" : "Apagar"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(null)}
+                      className="rounded-lg border border-border px-2 py-1 text-[11px]"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(c.id)}
+                    title="Apagar categoria"
+                    aria-label={`Apagar categoria ${c.short_name}`}
+                    className="shrink-0 rounded-lg border border-live/40 px-2 py-1.5 text-sm text-live transition-colors hover:bg-live/10"
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
             ))}
           </div>
